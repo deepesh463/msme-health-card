@@ -1,0 +1,267 @@
+{
+  "split": {
+    "train": 35000,
+    "val": 7500,
+    "test": 7500
+  },
+  "pd_models": {
+    "LightGBM (monotonic)": {
+      "pd_r2": 0.9121,
+      "pd_mae": 0.0199,
+      "logit_r2": 0.8989,
+      "risk_band_accuracy": 0.8291,
+      "high_risk_auc": 0.9773,
+      "eligibility_accuracy": 0.9237,
+      "sim_default_auc": 0.7328,
+      "sim_default_gini": 0.4656,
+      "sim_default_ks": 0.3499
+    },
+    "LightGBM (unconstrained)": {
+      "pd_r2": 0.9124,
+      "pd_mae": 0.0198,
+      "logit_r2": 0.8992,
+      "risk_band_accuracy": 0.8303,
+      "high_risk_auc": 0.9778,
+      "eligibility_accuracy": 0.9225,
+      "sim_default_auc": 0.7324,
+      "sim_default_gini": 0.4649,
+      "sim_default_ks": 0.3521
+    },
+    "Linear baseline (Ridge)": {
+      "pd_r2": 0.9177,
+      "pd_mae": 0.0193,
+      "logit_r2": 0.9045,
+      "risk_band_accuracy": 0.8321,
+      "high_risk_auc": 0.979,
+      "eligibility_accuracy": 0.9244,
+      "sim_default_auc": 0.734,
+      "sim_default_gini": 0.468,
+      "sim_default_ks": 0.3552
+    },
+    "Given PD (ceiling)": {
+      "sim_default_auc": 0.7414,
+      "sim_default_gini": 0.4828,
+      "sim_default_ks": 0.3661
+    }
+  },
+  "pd_best_iteration": 311,
+  "pd_by_segment": {
+    "NTC": {
+      "pd_r2": 0.9121,
+      "pd_mae": 0.0206,
+      "logit_r2": 0.8969,
+      "risk_band_accuracy": 0.825,
+      "high_risk_auc": 0.9786,
+      "eligibility_accuracy": 0.9234,
+      "sim_default_auc": 0.7376,
+      "sim_default_gini": 0.4752,
+      "sim_default_ks": 0.3551
+    },
+    "NTB": {
+      "pd_r2": 0.9126,
+      "pd_mae": 0.0202,
+      "logit_r2": 0.9052,
+      "risk_band_accuracy": 0.837,
+      "high_risk_auc": 0.9763,
+      "eligibility_accuracy": 0.9216,
+      "sim_default_auc": 0.7284,
+      "sim_default_gini": 0.4568,
+      "sim_default_ks": 0.3514
+    },
+    "Existing-to-Credit": {
+      "pd_r2": 0.9103,
+      "pd_mae": 0.0185,
+      "logit_r2": 0.893,
+      "risk_band_accuracy": 0.8266,
+      "high_risk_auc": 0.9763,
+      "eligibility_accuracy": 0.9265,
+      "sim_default_auc": 0.7252,
+      "sim_default_gini": 0.4504,
+      "sim_default_ks": 0.3447
+    }
+  },
+  "pd_calibration": {
+    "pred": [
+      0.0268,
+      0.0423,
+      0.0548,
+      0.0675,
+      0.0815,
+      0.0986,
+      0.1208,
+      0.1517,
+      0.2036,
+      0.3378
+    ],
+    "true": [
+      0.0279,
+      0.0438,
+      0.0572,
+      0.0687,
+      0.0826,
+      0.1008,
+      0.1237,
+      0.1525,
+      0.2029,
+      0.3372
+    ]
+  },
+  "score_models": {
+    "LightGBM (monotonic)": {
+      "r2": 0.8756,
+      "mae": 1.779
+    },
+    "Linear baseline (Ridge)": {
+      "r2": 0.8796,
+      "mae": 1.753
+    }
+  },
+  "pillar_models": {
+    "Business Stability": {
+      "r2": 0.9993,
+      "mae": 0.157
+    },
+    "Cash Flow": {
+      "r2": 0.999,
+      "mae": 0.173
+    },
+    "Revenue Consistency": {
+      "r2": 0.9987,
+      "mae": 0.226
+    },
+    "Payment Behaviour": {
+      "r2": 0.9989,
+      "mae": 0.112
+    },
+    "Business Growth": {
+      "r2": 0.9996,
+      "mae": 0.148
+    },
+    "Compliance": {
+      "r2": 0.9997,
+      "mae": 0.08
+    }
+  },
+  "pd_shap_importance": {
+    "GST_Filing_Timeliness_Pct": 0.1814,
+    "Cashflow_Stability_Index": 0.168,
+    "Transaction_Volatility_Index": 0.1386,
+    "Overdraft_Usage_Ratio": 0.1374,
+    "Avg_Invoice_Payment_Delay_Days": 0.1199,
+    "Revenue_Growth_Rate_Pct": 0.1062,
+    "Customer_Concentration_Ratio": 0.0965,
+    "Salary_Consistency_Pct": 0.0882,
+    "Vendor_Payment_Timeliness_Pct": 0.0674,
+    "Years_in_Operation": 0.0562,
+    "EMI_On_Time_Rate_Pct": 0.0131,
+    "Industry": 0.0039,
+    "Credit_History_Months": 0.003,
+    "Location_Category": 0.0022,
+    "Gross_Margin_GST": 0.0014,
+    "Seasonality_Index": 0.0013,
+    "Average_Bank_Balance_INR": 0.0013,
+    "GST_Bank_Gap": 0.0012,
+    "Revenue_per_Employee": 0.0011,
+    "Monthly_UPI_Inflow_INR": 0.0011,
+    "Employee_Attrition_Rate_Pct": 0.0011,
+    "Monthly_Loan_EMI_INR": 0.0009,
+    "UPI_Avg_Ticket_Size_INR": 0.0009,
+    "GST_Turnover_Gap": 0.0008,
+    "UPI_Daily_Txn_Count": 0.0008,
+    "Net_Surplus_Ratio": 0.0008,
+    "UPI_Share_of_Credits": 0.0007,
+    "Monthly_UPI_Outflow_INR": 0.0006,
+    "Monthly_GST_Purchases_INR": 0.0005,
+    "Monthly_Bank_Debits_INR": 0.0005,
+    "Monthly_Payroll_INR": 0.0005,
+    "Payroll_to_Sales": 0.0005,
+    "Lean_Month_Surplus_Ratio": 0.0005,
+    "Monthly_GST_Sales_INR": 0.0005,
+    "Balance_Cover_Months": 0.0004,
+    "Annual_Turnover_INR": 0.0003,
+    "Monthly_Bank_Credits_INR": 0.0003,
+    "Business_Type": 0.0003,
+    "Employee_Count": 0.0002,
+    "Customer_Segment": 0.0001,
+    "Has_Existing_Loan": 0.0001,
+    "GST_Return_Frequency": 0.0001,
+    "EMI_Burden": 0.0,
+    "Thin_File": 0.0
+  },
+  "score_shap_importance": {
+    "GST_Filing_Timeliness_Pct": 1.6243,
+    "Cashflow_Stability_Index": 1.3499,
+    "Revenue_Growth_Rate_Pct": 0.9669,
+    "Customer_Concentration_Ratio": 0.8778,
+    "Salary_Consistency_Pct": 0.7075,
+    "Transaction_Volatility_Index": 0.6573,
+    "Vendor_Payment_Timeliness_Pct": 0.5692,
+    "Years_in_Operation": 0.5154,
+    "Overdraft_Usage_Ratio": 0.5145,
+    "Avg_Invoice_Payment_Delay_Days": 0.4942,
+    "EMI_On_Time_Rate_Pct": 0.1259,
+    "Industry": 0.0327,
+    "Credit_History_Months": 0.0267,
+    "Location_Category": 0.0187,
+    "Revenue_per_Employee": 0.0147,
+    "Seasonality_Index": 0.0139,
+    "Monthly_GST_Purchases_INR": 0.0128,
+    "Average_Bank_Balance_INR": 0.0126,
+    "GST_Bank_Gap": 0.0117,
+    "Gross_Margin_GST": 0.0115,
+    "Lean_Month_Surplus_Ratio": 0.0112,
+    "UPI_Avg_Ticket_Size_INR": 0.0107,
+    "Monthly_UPI_Inflow_INR": 0.0105,
+    "Employee_Attrition_Rate_Pct": 0.01,
+    "Monthly_GST_Sales_INR": 0.0098,
+    "UPI_Share_of_Credits": 0.0094,
+    "Monthly_UPI_Outflow_INR": 0.0092,
+    "Net_Surplus_Ratio": 0.009,
+    "UPI_Daily_Txn_Count": 0.0086,
+    "GST_Turnover_Gap": 0.0084,
+    "Payroll_to_Sales": 0.0079,
+    "Monthly_Payroll_INR": 0.0078,
+    "Monthly_Bank_Debits_INR": 0.0072,
+    "Monthly_Loan_EMI_INR": 0.0067,
+    "Balance_Cover_Months": 0.0061,
+    "Monthly_Bank_Credits_INR": 0.0044,
+    "Annual_Turnover_INR": 0.0043,
+    "Business_Type": 0.0035,
+    "Employee_Count": 0.0031,
+    "Customer_Segment": 0.0028,
+    "GST_Return_Frequency": 0.0012,
+    "EMI_Burden": 0.0009,
+    "Has_Existing_Loan": 0.0003,
+    "Thin_File": 0.0
+  },
+  "anomaly": {
+    "false_alarm_rate_clean": {
+      "isolation_forest": 0.0208,
+      "rules": 0.0065,
+      "combined": 0.0253
+    },
+    "detection_rate_planted": {
+      "Circular transactions": {
+        "isolation_forest": 0.057,
+        "rules": 1.0,
+        "combined": 1.0
+      },
+      "Ghost payroll": {
+        "isolation_forest": 0.12,
+        "rules": 0.363,
+        "combined": 0.397
+      },
+      "Hidden debt burden": {
+        "isolation_forest": 0.12,
+        "rules": 1.0,
+        "combined": 1.0
+      },
+      "Inflated GST sales": {
+        "isolation_forest": 0.14,
+        "rules": 1.0,
+        "combined": 1.0
+      }
+    }
+  },
+  "train_seconds": 18.0
+}
