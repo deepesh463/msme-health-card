@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from msme_health.config import CATEGORICAL, ID_COL, NUMERIC_RAW, PILLARS
 from msme_health.connectors import REAL_INTEGRATION, SOURCE_FIELDS, build_connectors
@@ -53,7 +54,13 @@ def _summary(card: dict, ts: str) -> ScoreSummary:
     )
 
 
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse("/docs")
+
+
 @app.get("/health", tags=["system"])
+@app.get("/api/v1/health", tags=["system"])
 def health():
     return {"status": "ok", "portfolio_size": int(len(_raw))}
 
