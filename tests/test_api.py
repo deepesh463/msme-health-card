@@ -39,6 +39,24 @@ def test_consent_fetch_score_flow(client):
     assert body["risk_band"] in {"Low", "Medium", "High"}
 
 
+def test_fetch_needs_matching_consent(client):
+    assert client.post("/api/v1/msmes/MSME0000011/fetch").status_code == 422          # no consent at all
+    assert client.post("/api/v1/msmes/MSME0000011/fetch?consent_id=FAKE").status_code == 403
+    c = client.post("/api/v1/consents", json={"msme_id": "MSME0000011"}).json()
+    other = client.post(f"/api/v1/msmes/MSME0000012/fetch?consent_id={c['consent_id']}")
+    assert other.status_code == 403                                                      # consent is for another business
+    assert client.post(f"/api/v1/msmes/MSME0000011/fetch?consent_id={c['consent_id']}").status_code == 200
+
+
+def test_zero_bank_credits_does_not_crash(client, sample):
+    r = client.post("/api/v1/score", json=dict(sample, Monthly_Bank_Credits_INR=0))
+    assert r.status_code == 200, r.text
+
+
+def test_lowercase_id_is_accepted(client):
+    assert client.get("/api/v1/msmes/msme0000001/health-card").status_code == 200
+
+
 def test_health_card_contents(client):
     card = client.get("/api/v1/msmes/MSME0000001/health-card").json()
     assert len(card["pillars"]) == 6

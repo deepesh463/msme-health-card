@@ -38,6 +38,7 @@ def _record(msme_id: str) -> dict:
     data = store.get_data(msme_id)
     if data:
         return data
+    msme_id = msme_id.upper()  # portfolio IDs are upper case; accept msme0000001 too
     if msme_id in _raw.index:
         row = _raw.loc[msme_id].to_dict()
         row[ID_COL] = msme_id
@@ -69,6 +70,7 @@ def health():
 @app.post("/api/v1/consents", tags=["ingestion"])
 def create_consent(req: ConsentRequest):
     """Mock Account Aggregator consent artefact. In production this is raised via the AA's consent manager."""
+    req.msme_id = req.msme_id.upper()
     cid = "CNS-" + uuid.uuid4().hex[:12].upper()
     now = datetime.now(timezone.utc)
     artefact = {
@@ -96,6 +98,8 @@ def ingest_source(msme_id: str, source: str, payload: SourcePayload):
     """Push one source's data (e.g. a GSTN or EPFO payload). Merged into the business's record."""
     if source not in SOURCE_FIELDS:
         raise HTTPException(400, f"Unknown source. Use one of {list(SOURCE_FIELDS)}")
+    if payload.consent_id:
+        _check_consent(msme_id, payload.consent_id)
     unknown = set(payload.fields) - set(SOURCE_FIELDS[source])
     if unknown:
         raise HTTPException(422, f"Fields not provided by {source}: {sorted(unknown)}")
@@ -107,11 +111,23 @@ def ingest_source(msme_id: str, source: str, payload: SourcePayload):
     return {"msme_id": msme_id, "source": source, "ready_to_score": not missing, "missing_fields": missing}
 
 
+def _check_consent(msme_id: str, consent_id: str) -> None:
+    """Consent first: the artefact must exist, belong to this business, be active and not expired."""
+    c = store.get_consent(consent_id)
+    if not c:
+        raise HTTPException(403, "Unknown consent_id. Create one with POST /api/v1/consents.")
+    if c["msme_id"] != msme_id:
+        raise HTTPException(403, f"Consent {consent_id} was given for {c['msme_id']}, not {msme_id}.")
+    if c["status"] != "ACTIVE" or datetime.fromisoformat(c["valid_until"]) < datetime.now(timezone.utc):
+        raise HTTPException(403, f"Consent {consent_id} is no longer active.")
+
+
 @app.post("/api/v1/msmes/{msme_id}/fetch", tags=["ingestion"])
-def fetch_all_sources(msme_id: str, consent_id: str | None = None):
-    """Pull every source through its connector (mocked from the dataset) and store the merged record."""
-    if consent_id and not store.get_consent(consent_id):
-        raise HTTPException(403, "Unknown consent_id")
+def fetch_all_sources(msme_id: str, consent_id: str = Query(..., description="From POST /api/v1/consents")):
+    """Pull every source through its connector (mocked from the dataset) and store the merged record.
+    Needs a consent artefact for this business (consent first)."""
+    msme_id = msme_id.upper()
+    _check_consent(msme_id, consent_id)
     rec, fetched = {ID_COL: msme_id}, {}
     for name, conn in connectors.items():
         try:

@@ -205,19 +205,26 @@ class HealthCardEngine:
 
     @staticmethod
     def _risk_indicators(f, flags, is_out, anomaly_pct):
+        credits = f["Monthly_Bank_Credits_INR"] or 0
+        # (label, feature, red if, amber if, format)
         checks = [
-            ("Overdraft usage", f["Overdraft_Usage_Ratio"], f["Overdraft_Usage_Ratio"] > 0.40, f["Overdraft_Usage_Ratio"] > 0.30, "{:.0%}"),
-            ("Transaction volatility", f["Transaction_Volatility_Index"], f["Transaction_Volatility_Index"] > 0.45, f["Transaction_Volatility_Index"] > 0.35, "{:.2f}"),
-            ("Customer concentration", f["Customer_Concentration_Ratio"], f["Customer_Concentration_Ratio"] > 0.70, f["Customer_Concentration_Ratio"] > 0.55, "{:.0%}"),
-            ("Days customers take to pay", f["Avg_Invoice_Payment_Delay_Days"], f["Avg_Invoice_Payment_Delay_Days"] > 30, f["Avg_Invoice_Payment_Delay_Days"] > 20, "{:.0f} days"),
-            ("EMI share of income", f["EMI_Burden"], f["EMI_Burden"] > 0.30, f["EMI_Burden"] > 0.20, "{:.0%}"),
-            ("Lean-month cash surplus", f["Lean_Month_Surplus_INR"], f["Lean_Month_Surplus_INR"] < 0, f["Lean_Month_Surplus_INR"] < 0.05 * f["Monthly_Bank_Credits_INR"], "₹{:,.0f}"),
-            ("Revenue growth", f["Revenue_Growth_Rate_Pct"], f["Revenue_Growth_Rate_Pct"] < -10, f["Revenue_Growth_Rate_Pct"] < 0, "{:.1f}%"),
-            ("Employee attrition", f["Employee_Attrition_Rate_Pct"], f["Employee_Attrition_Rate_Pct"] > 30, f["Employee_Attrition_Rate_Pct"] > 22, "{:.1f}%"),
+            ("Overdraft usage", "Overdraft_Usage_Ratio", lambda v: v > 0.40, lambda v: v > 0.30, "{:.0%}"),
+            ("Transaction volatility", "Transaction_Volatility_Index", lambda v: v > 0.45, lambda v: v > 0.35, "{:.2f}"),
+            ("Customer concentration", "Customer_Concentration_Ratio", lambda v: v > 0.70, lambda v: v > 0.55, "{:.0%}"),
+            ("Days customers take to pay", "Avg_Invoice_Payment_Delay_Days", lambda v: v > 30, lambda v: v > 20, "{:.0f} days"),
+            ("EMI share of income", "EMI_Burden", lambda v: v > 0.30, lambda v: v > 0.20, "{:.0%}"),
+            ("Lean-month cash surplus", "Lean_Month_Surplus_INR", lambda v: v < 0, lambda v: v < 0.05 * credits, "₹{:,.0f}"),
+            ("Revenue growth", "Revenue_Growth_Rate_Pct", lambda v: v < -10, lambda v: v < 0, "{:.1f}%"),
+            ("Employee attrition", "Employee_Attrition_Rate_Pct", lambda v: v > 30, lambda v: v > 22, "{:.1f}%"),
         ]
         out = []
-        for name, val, red, amber, fmt in checks:
-            level = "High" if red else ("Watch" if amber else "OK")
+        for name, key, red, amber, fmt in checks:
+            val = f.get(key)
+            if val is None or (isinstance(val, float) and not np.isfinite(val)):
+                # Can't be computed (e.g. no bank credits): flag it rather than fail.
+                out.append({"indicator": name, "value": "n/a", "level": "Watch"})
+                continue
+            level = "High" if red(val) else ("Watch" if amber(val) else "OK")
             out.append({"indicator": name, "value": fmt.format(val), "level": level})
         out.append({"indicator": "Data consistency", "value": f"{len(flags)} flag(s) · unusualness {anomaly_pct:.0f}/100",
                     "level": "High" if flags else ("Watch" if is_out else "OK")})
