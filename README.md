@@ -5,7 +5,8 @@ An explainable credit-assessment system for **new-to-credit (NTC)** and **new-to
 - **Card:** a 0–100 score, 6 pillar scores, risk flags, reasons and improvement actions.
 - **Decision:** approve / decline, limit, tenure, rate and conditions.
 
-> **Live demo:** dashboard `<render-dashboard-url>` · API docs `<render-api-url>/docs`
+> **Live demo:** [Dashboard](https://msme-health-dashboard.onrender.com/) · [API docs](https://msme-health-api-yx6e.onrender.com/docs)
+> Free hosting: if a link has been idle, the first load takes about a minute while it wakes up.
 
 ---
 
