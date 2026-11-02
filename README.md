@@ -35,7 +35,7 @@ An explainable credit-assessment system for **new-to-credit (NTC)** and **new-to
 
 42% of the 50,000 businesses in the dataset are NTC: no loan, no bureau history. A bureau-only lender rejects all of them. On alternate data, **about 73% of NTC businesses are not high-risk**, nearly the same as existing borrowers (78%). This system finds them, explains why, and sizes a loan they can afford.
 
-**Cars24 angle:** Cars24's business customers include used-car dealers and fleet operators. Acting as a loan marketplace for them, Cars24 could use the Health Card to offer dealer inventory finance and commercial-vehicle loans to businesses that banks currently can't assess.
+**Cars24 angle:** Cars24's business customers include used-car dealers and fleet operators, many of them new to credit. Acting as a loan marketplace, Cars24 can share the Health Card with partner lenders, so these businesses can get credit even though banks can't assess them today.
 
 ## Results (held-out test set, 7,500 businesses)
 

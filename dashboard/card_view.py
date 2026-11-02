@@ -5,10 +5,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from msme_health.config import SOURCE_OF
 from msme_health.features import LABELS
 
-from ui import (AMBER, BAND_COLOR, DECISION_COLOR, GREEN, INDIGO, LEVEL_COLOR, PILLAR_GRADE_RANGE, RED, SLATE, badge,
-                card, chips, gauge, grade_key, inr, pillar_tile, style_fig)
+from ui import (AMBER, BAND_COLOR, DECISION_COLOR, GREEN, INDIGO, LEVEL_COLOR, RED, SLATE, badge,
+                card, chips, gauge, grade_key, overall_grade_key, inr, pillar_tile, style_fig)
 
 PCT_METRICS = {"Net_Surplus_Ratio", "Lean_Month_Surplus_Ratio", "Overdraft_Usage_Ratio"}
 
@@ -21,7 +22,7 @@ def _fmt(metric: str, v: float) -> str:
     if metric in PCT_METRICS:
         return f"{v:.0%}"
     if metric.endswith("_Days"):
-        return f"{v:.0f} d"
+        return f"{v:.0f} days"
     return f"{v:,.2f}"
 
 
@@ -36,9 +37,24 @@ def header(card_d: dict, raw: dict):
                  f"Credit history {int(p['Credit_History_Months'] or 0)} mo"], grey=True),
         unsafe_allow_html=True,
     )
-    src = " ".join(("✅ " if ok else "⛔ ") + name for name, ok in cov["sources"].items())
-    note = f" — {cov['note']}" if cov["note"] else ""
-    st.caption(f"Data sources: {src}  ·  Confidence: **{cov['confidence']}**{note}")
+    pills = "".join(
+        f'<span style="display:inline-block;margin:2px 4px 2px 0;padding:3px 10px;border-radius:999px;font-size:.75rem;'
+        f'font-weight:600;background:{"#DCFCE7" if ok else "#FEE2E2"};color:{"#166534" if ok else "#991B1B"}">'
+        f'{"✓" if ok else "✕"} {name}</span>'
+        for name, ok in cov["sources"].items()
+    )
+    conf_bg, conf_fg = {"High": ("#DCFCE7", "#166534"), "Medium": ("#FEF3C7", "#92400E")}.get(cov["confidence"], ("#FEE2E2", "#991B1B"))
+    note = f'<div style="font-size:.75rem;color:#64748B;margin-top:6px">ℹ️ {cov["note"]}</div>' if cov["note"] else ""
+    st.markdown(
+        '<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;margin:4px 0 10px">'
+        '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">'
+        '<span style="font-size:.78rem;font-weight:700;color:#0F172A;margin-right:4px">Data sources</span>'
+        f'{pills}'
+        '<span style="margin-left:auto;font-size:.78rem;color:#475569">Confidence '
+        f'<b style="background:{conf_bg};color:{conf_fg};padding:3px 10px;border-radius:999px">{cov["confidence"]}</b></span>'
+        f'</div>{note}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def top_row(c: dict):
@@ -46,7 +62,7 @@ def top_row(c: dict):
     a, b, d = st.columns([1.15, 1, 1])
     with a:
         st.plotly_chart(gauge(c["financial_health_score"], c["grade"]), use_container_width=True, config={"displayModeBar": False})
-        st.caption("Overall grade by score: A+ 85+ · A 78–85 · B 70–78 · C 62–70 · D below 62")
+        st.markdown(overall_grade_key(c["grade"]), unsafe_allow_html=True)
     with b:
         col = DECISION_COLOR.get(rec["decision"], INDIGO)
         st.markdown(
@@ -55,7 +71,6 @@ def top_row(c: dict):
             f'<div class="kpi-sub">Recommended limit'
             + (f' · {rec["tenure_months"]} mo @ {rec["indicative_rate_pct"]:.0f}% · EMI {inr(rec["estimated_emi_inr"])}' if rec["eligible"] else "")
             + "</div>"
-            + (f'<div class="kpi-sub" style="margin-top:8px">🚗 <b>{rec["suggested_product"]}</b></div>' if rec["suggested_product"] else "")
             + (f'<div class="kpi-sub">Limit set by: {rec["binding_constraint"]}</div>' if rec["binding_constraint"] else "")
             + "</div>",
             unsafe_allow_html=True,
@@ -73,14 +88,46 @@ def top_row(c: dict):
 
 def pillars_row(c: dict):
     st.markdown("##### The 6 pillars")
-    st.markdown("**What the grade means:** how this business ranks against all 50,000 MSMEs on that pillar.")
-    st.markdown(grade_key(PILLAR_GRADE_RANGE), unsafe_allow_html=True)
-    st.caption("Why a ranking and not the raw score: each pillar has its own natural range. Most businesses score about 83 on "
-               "Payment but about 41 on Growth, so 82 on Payment is below average (C) while 55 on Growth is in the top 15% (A).")
+    st.markdown(grade_key(), unsafe_allow_html=True)
     cols = st.columns(6)
     for col, p in zip(cols, c["pillars"]):
         with col:
             pillar_tile(p)
+
+
+def reasons_block(c: dict) -> str:
+    """Top reasons raising default risk: value vs peers, data source and relative strength."""
+    codes = c["explanation"]["risk_reason_codes"]
+    head = ('<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;padding:12px 14px">'
+            '<div style="font-size:.9rem;font-weight:700;color:#0F172A">⚠️ Top reasons raising default risk</div>'
+            '<div style="font-size:.74rem;color:#64748B;margin-bottom:8px">Strongest first. Each one pushes this business\'s risk above the average MSME.</div>')
+    if not codes:
+        return head + '<div style="font-size:.85rem;color:#166534">✅ No factor is raising risk above the average MSME.</div></div>'
+    peers = {m["metric"]: m for m in (c.get("peer_benchmark") or {}).get("metrics", [])}
+    top = max(r["impact_log_odds"] for r in codes) or 1
+    rows = ""
+    for i, r in enumerate(codes, 1):
+        v = r["value"]
+        val = "—" if v is None else (_fmt(r["feature"], v) if isinstance(v, (int, float)) else str(v))
+        pm = peers.get(r["feature"])
+        peer = f' <span style="color:#64748B">· similar businesses: {_fmt(r["feature"], pm["peer_median"])}</span>' if pm and v is not None else ""
+        src = SOURCE_OF.get(r["feature"])
+        src_pill = (f'<span style="font-size:.66rem;background:#EEF2FF;color:#4338CA;padding:1px 7px;border-radius:999px;margin-left:6px">{src}</span>'
+                    if src else "")
+        width = max(8, round(r["impact_log_odds"] / top * 100))
+        rows += (
+            '<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid #F1F5F9">'
+            f'<div style="flex:none;width:24px;height:24px;border-radius:50%;background:#FEE2E2;color:#991B1B;font-weight:800;'
+            f'font-size:.8rem;display:flex;align-items:center;justify-content:center">{i}</div>'
+            '<div style="flex:1;min-width:0">'
+            f'<div style="font-size:.85rem;font-weight:700;color:#0F172A">{r["label"]}{src_pill}</div>'
+            f'<div style="font-size:.78rem;color:#334155">This business: <b>{val}</b>{peer}</div>'
+            f'<div style="height:5px;background:#F1F5F9;border-radius:3px;margin-top:5px"><div style="width:{width}%;height:5px;background:#F87171;border-radius:3px"></div></div>'
+            '</div></div>'
+        )
+    foot = ('<div style="font-size:.7rem;color:#64748B;margin-top:6px">These are the <b>reason codes</b> shared with the business '
+            'if credit is declined or limited (RBI Fair Practices Code).</div>')
+    return head + rows + foot + "</div>"
 
 
 def why_tab(c: dict):
@@ -116,14 +163,7 @@ def why_tab(c: dict):
         fig.update_xaxes(range=[min(0, float(pc.min())) - pad, max(0, float(pc.max())) + pad])
         fig.update_layout(title="Net effect by pillar (points)")
         st.plotly_chart(style_fig(fig, 260, legend=False), use_container_width=True, config={"displayModeBar": False})
-        st.markdown("**Top reasons raising default risk**")
-        if e["risk_reason_codes"]:
-            for i, r in enumerate(e["risk_reason_codes"], 1):
-                val = "—" if r["value"] is None else (f"{r['value']:,.2f}" if isinstance(r["value"], float) else r["value"])
-                st.markdown(f"{i}. **{r['label']}** (value: {val})")
-        else:
-            st.markdown("No factor is raising risk above the average MSME.")
-        st.caption("Reason codes support adverse-action notices under RBI's Fair Practices Code.")
+        st.markdown(reasons_block(c), unsafe_allow_html=True)
 
 
 def risk_tab(c: dict):

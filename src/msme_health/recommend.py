@@ -11,20 +11,6 @@ import math
 
 from .config import POLICY, RISK_BANDS
 
-PRODUCT_BY_INDUSTRY = {
-    "Logistics": "Commercial vehicle / fleet finance (Cars24 used CVs)",
-    "Trading": "Inventory & working-capital line",
-    "Retail": "Inventory & working-capital line",
-    "Manufacturing": "Term loan for equipment",
-    "Construction": "Equipment & vehicle finance",
-    "Food & Beverage": "Working-capital line",
-    "Textiles": "Working-capital line",
-    "Services": "Business term loan",
-    "IT & Digital": "Business term loan",
-    "Healthcare": "Equipment finance",
-}
-
-
 def risk_band(pd_value: float) -> str:
     return next(name for cut, name in RISK_BANDS if pd_value < cut)
 
@@ -99,7 +85,6 @@ def recommend(row: dict, pd_value: float, anomaly_flags: list[str], is_outlier: 
         "estimated_emi_inr": round(emi),
         "monthly_surplus_inr": round(surplus),
         "lean_month_surplus_inr": round(lean_surplus),
-        "suggested_product": PRODUCT_BY_INDUSTRY.get(row.get("Industry"), "Business term loan") if decision != "Decline" else None,
         "conditions": conditions,
         "reasons": reasons,
     }

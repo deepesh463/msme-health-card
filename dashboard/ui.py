@@ -51,9 +51,9 @@ div[data-testid="stMetricValue"] { font-weight: 800; }
 section[data-testid="stSidebar"] { background: #0F172A; }
 section[data-testid="stSidebar"] * { color: #E2E8F0 !important; }
 section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] [data-baseweb="select"] * { color:#0F172A !important; }
-section[data-testid="stSidebar"] .stButton button { background:#4F46E5; border:1px solid #6366F1; }
-section[data-testid="stSidebar"] .stButton button:hover { background:#6366F1; }
-section[data-testid="stSidebar"] .stButton button p { color:#FFFFFF !important; font-weight:600; }
+section[data-testid="stSidebar"] .stButton button, section[data-testid="stSidebar"] .stFormSubmitButton button { background:#4F46E5; border:1px solid #6366F1; }
+section[data-testid="stSidebar"] .stButton button:hover, section[data-testid="stSidebar"] .stFormSubmitButton button:hover { background:#6366F1; }
+section[data-testid="stSidebar"] .stButton button p, section[data-testid="stSidebar"] .stFormSubmitButton button p { color:#FFFFFF !important; font-weight:600; }
 .stTabs [data-baseweb="tab-list"] { gap: 6px; }
 .stTabs [data-baseweb="tab"] { background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:6px 14px; }
 .stTabs [aria-selected="true"] { background:#EEF2FF; border-color:#C7D2FE; }
@@ -64,19 +64,48 @@ GRADE_COLOR = {"A+": ("#DCFCE7", "#166534"), "A": ("#DCFCE7", "#15803D"), "B": (
                "C": ("#FEF3C7", "#92400E"), "D": ("#FEE2E2", "#991B1B")}
 GRADE_MEANING = {"A+": "Excellent", "A": "Strong", "B": "Average", "C": "Below average", "D": "Weak"}
 # Pillar grades rank a business against all MSMEs (see engine.grade_from_pct).
-PILLAR_GRADE_RANGE = {"A+": "better than 90%+", "A": "better than 70–90%", "B": "better than 40–70%",
-                      "C": "better than 15–40%", "D": "better than under 15%"}
+# Pillar grades rank a business against all MSMEs (see engine.grade_from_pct).
+# (grade, share of businesses it beats: from %, to %)
+PILLAR_GRADE_BANDS = [("D", 0, 15), ("C", 15, 40), ("B", 40, 70), ("A", 70, 90), ("A+", 90, 100)]
 
 
-def grade_key(ranges: dict) -> str:
-    """One-line colour key: grade, meaning and range."""
-    items = "".join(
-        f'<span style="display:inline-block;margin:0 10px 6px 0;font-size:.8rem">'
-        f'<b style="background:{GRADE_COLOR[g][0]};color:{GRADE_COLOR[g][1]};padding:2px 8px;border-radius:7px">{g}</b> '
-        f'{GRADE_MEANING[g]} <span style="color:#64748B">({r})</span></span>'
-        for g, r in ranges.items()
+OVERALL_GRADE_BANDS = [("A+", "85+"), ("A", "78–85"), ("B", "70–78"), ("C", "62–70"), ("D", "below 62")]
+
+
+def overall_grade_key(current: str) -> str:
+    """Small chips under the gauge: the score range for each overall grade, current one highlighted."""
+    chips_html = "".join(
+        f'<span style="display:inline-block;margin:2px 3px;padding:2px 8px;border-radius:999px;font-size:.72rem;'
+        f'background:{GRADE_COLOR[g][0]};color:{GRADE_COLOR[g][1]};'
+        f'{"outline:2px solid " + GRADE_COLOR[g][1] + ";font-weight:800" if g == current else "opacity:.75"}">'
+        f'<b>{g}</b> {r}</span>'
+        for g, r in OVERALL_GRADE_BANDS
     )
-    return f'<div>{items}</div>'
+    return f'<div style="text-align:center;margin-top:-8px"><div style="font-size:.72rem;color:#64748B;margin-bottom:2px">Overall grade by score</div>{chips_html}</div>'
+
+
+def grade_key() -> str:
+    """Coloured scale from D to A+: what each pillar grade means."""
+    blocks = "".join(
+        f'<div style="flex:{hi - lo};background:{GRADE_COLOR[g][0]};border-top:4px solid {GRADE_COLOR[g][1]};'
+        f'padding:8px 10px;min-width:0">'
+        f'<div style="font-weight:800;font-size:1rem;color:{GRADE_COLOR[g][1]}">{g}</div>'
+        f'<div style="font-size:.78rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{GRADE_MEANING[g]}</div>'
+        f'<div style="font-size:.72rem;color:#475569">beats {lo}–{hi}%</div></div>'
+        for g, lo, hi in PILLAR_GRADE_BANDS
+    )
+    return (
+        '<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;padding:12px 14px;margin-bottom:10px">'
+        '<div style="font-size:.85rem;font-weight:700;color:#0F172A;margin-bottom:8px">What the grade means '
+        '<span style="font-weight:400;color:#64748B">· how this business ranks against all 50,000 MSMEs on each pillar</span></div>'
+        f'<div style="display:flex;gap:3px;border-radius:10px;overflow:hidden">{blocks}</div>'
+        '<div style="display:flex;justify-content:space-between;font-size:.7rem;color:#94A3B8;margin-top:4px">'
+        '<span>◀ weaker than most</span><span>stronger than most ▶</span></div>'
+        '<div style="margin-top:10px;background:#F8FAFC;border-left:3px solid #6366F1;border-radius:6px;padding:8px 10px;font-size:.8rem;color:#334155">'
+        '💡 <b>Why a ranking, not the raw score?</b> Each pillar has its own normal range. Most businesses score about '
+        '<b>83</b> on Payment but only about <b>41</b> on Growth. So 82 on Payment is below average (<b>C</b>), '
+        'while 55 on Growth is in the top 15% (<b>A</b>).</div></div>'
+    )
 
 
 def setup(title: str, subtitle: str):
