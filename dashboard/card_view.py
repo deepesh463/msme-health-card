@@ -7,8 +7,8 @@ import streamlit as st
 
 from msme_health.features import LABELS
 
-from ui import (AMBER, BAND_COLOR, DECISION_COLOR, GREEN, INDIGO, LEVEL_COLOR, RED, SLATE, badge, card, chips,
-                gauge, inr, pillar_tile, style_fig)
+from ui import (AMBER, BAND_COLOR, DECISION_COLOR, GREEN, INDIGO, LEVEL_COLOR, PILLAR_GRADE_RANGE, RED, SLATE, badge,
+                card, chips, gauge, grade_key, inr, pillar_tile, style_fig)
 
 PCT_METRICS = {"Net_Surplus_Ratio", "Lean_Month_Surplus_Ratio", "Overdraft_Usage_Ratio"}
 
@@ -46,6 +46,7 @@ def top_row(c: dict):
     a, b, d = st.columns([1.15, 1, 1])
     with a:
         st.plotly_chart(gauge(c["financial_health_score"], c["grade"]), use_container_width=True, config={"displayModeBar": False})
+        st.caption("Overall grade by score: A+ 85+ · A 78–85 · B 70–78 · C 62–70 · D below 62")
     with b:
         col = DECISION_COLOR.get(rec["decision"], INDIGO)
         st.markdown(
@@ -72,8 +73,10 @@ def top_row(c: dict):
 
 def pillars_row(c: dict):
     st.markdown("##### The 6 pillars")
-    st.caption("Each pillar is scored 0–100. Grades (A+ to D) compare this business with all 50,000 MSMEs, because each pillar "
-               "has its own natural range: a Growth score of 55 is in the top 15%, while a Payment score of 82 is about average.")
+    st.markdown("**What the grade means:** how this business ranks against all 50,000 MSMEs on that pillar.")
+    st.markdown(grade_key(PILLAR_GRADE_RANGE), unsafe_allow_html=True)
+    st.caption("Why a ranking and not the raw score: each pillar has its own natural range. Most businesses score about 83 on "
+               "Payment but about 41 on Growth, so 82 on Payment is below average (C) while 55 on Growth is in the top 15% (A).")
     cols = st.columns(6)
     for col, p in zip(cols, c["pillars"]):
         with col:

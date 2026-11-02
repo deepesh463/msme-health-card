@@ -62,6 +62,21 @@ section[data-testid="stSidebar"] .stButton button p { color:#FFFFFF !important; 
 
 GRADE_COLOR = {"A+": ("#DCFCE7", "#166534"), "A": ("#DCFCE7", "#15803D"), "B": ("#E0F2FE", "#075985"),
                "C": ("#FEF3C7", "#92400E"), "D": ("#FEE2E2", "#991B1B")}
+GRADE_MEANING = {"A+": "Excellent", "A": "Strong", "B": "Average", "C": "Below average", "D": "Weak"}
+# Pillar grades rank a business against all MSMEs (see engine.grade_from_pct).
+PILLAR_GRADE_RANGE = {"A+": "better than 90%+", "A": "better than 70–90%", "B": "better than 40–70%",
+                      "C": "better than 15–40%", "D": "better than under 15%"}
+
+
+def grade_key(ranges: dict) -> str:
+    """One-line colour key: grade, meaning and range."""
+    items = "".join(
+        f'<span style="display:inline-block;margin:0 10px 6px 0;font-size:.8rem">'
+        f'<b style="background:{GRADE_COLOR[g][0]};color:{GRADE_COLOR[g][1]};padding:2px 8px;border-radius:7px">{g}</b> '
+        f'{GRADE_MEANING[g]} <span style="color:#64748B">({r})</span></span>'
+        for g, r in ranges.items()
+    )
+    return f'<div>{items}</div>'
 
 
 def setup(title: str, subtitle: str):
@@ -163,7 +178,9 @@ def pillar_tile(p: dict):
         f'<div class="pillar"><span class="grade" style="background:{bg};color:{fg}">{p["grade"]}</span>'
         f'<div class="name">{p["name"]}</div><div class="val">{p["score"]:.1f}</div>'
         f'<div class="bar"><div style="width:{width}%;background:{fg}"></div></div>'
-        f'<div class="pct">Better than {pct:.0f}% of MSMEs</div>{drivers}</div>',
+        f'<div class="pct">{GRADE_MEANING.get(p["grade"], "")}: better than {pct:.0f}% of MSMEs</div>{drivers}</div>'
+        if pct is not None else
+        f'<div class="pct">{GRADE_MEANING.get(p["grade"], "")}</div>{drivers}</div>',
         unsafe_allow_html=True,
     )
 
@@ -185,12 +202,28 @@ def pick_business(key: str = "biz") -> str:
     if f.empty:
         st.sidebar.warning("No business matches. Showing all.")
         f = s
-    if f"{key}_id" not in st.session_state or st.session_state[f"{key}_id"] not in set(f[ID_COL]):
-        st.session_state[f"{key}_id"] = f[ID_COL].iloc[0]
+    ss = st.session_state
+    id_key, typed_key, filt_key = f"{key}_id", f"{key}_typed", f"{key}_filters"
+
+    def show(msme_id: str):
+        # Keep the ID box in sync, otherwise its old text would switch the business back.
+        ss[id_key] = msme_id
+        ss[typed_key] = msme_id
+
+    filters = (seg, band, ind)
+    if id_key not in ss or (ss.get(filt_key) != filters and ss[id_key] not in set(f[ID_COL])):
+        show(f[ID_COL].iloc[0])
+    ss[filt_key] = filters
     if st.sidebar.button("🎲  Random business", use_container_width=True, key=f"{key}_rand"):
-        st.session_state[f"{key}_id"] = f[ID_COL].sample(1).iloc[0]
-    typed = st.sidebar.text_input("…or type an MSME ID", value=st.session_state[f"{key}_id"], key=f"{key}_typed")
-    if typed and typed != st.session_state[f"{key}_id"] and typed in set(s[ID_COL]):
-        st.session_state[f"{key}_id"] = typed
+        show(f[ID_COL].sample(1).iloc[0])
+    with st.sidebar.form(f"{key}_search", border=False):
+        st.text_input("Search by MSME ID", key=typed_key, placeholder="e.g. MSME0035912")
+        searched = st.form_submit_button("🔍  Search", use_container_width=True)
+    typed = (ss.get(typed_key) or "").strip().upper()
+    if searched and typed and typed != ss[id_key]:
+        if typed in set(s[ID_COL]):
+            ss[id_key] = typed
+        else:
+            st.sidebar.warning(f"{typed} not found.")
     st.sidebar.caption(f"{len(f):,} businesses match the filters")
     return st.session_state[f"{key}_id"]
