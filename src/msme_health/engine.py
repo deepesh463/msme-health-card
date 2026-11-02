@@ -31,7 +31,7 @@ ACTIONABLE = {
 ADVICE = {
     "GST_Filing_Timeliness_Pct": "File GST returns on or before the due date",
     "Overdraft_Usage_Ratio": "Reduce reliance on the overdraft",
-    "Avg_Invoice_Payment_Delay_Days": "Collect from customers faster (e.g. TReDS invoice discounting)",
+    "Avg_Invoice_Payment_Delay_Days": "Collect from customers faster (e.g. invoice discounting)",
     "Vendor_Payment_Timeliness_Pct": "Pay suppliers on time",
     "Salary_Consistency_Pct": "Pay salaries on a fixed date every month",
     "Customer_Concentration_Ratio": "Spread sales across more customers",

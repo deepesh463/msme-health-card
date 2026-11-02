@@ -24,13 +24,13 @@ SOURCE_FIELDS = {
 }
 
 REAL_INTEGRATION = {
-    "gstn": "GSTN via a GST Suvidha Provider (GSP) API, taxpayer OTP consent; GSTR-1/3B returns",
-    "upi": "Bank / PSP merchant settlement data, or UPI flows inside AA bank statements",
-    "account_aggregator": "Sahamati AA network as an FIU: consent request -> FI fetch -> decrypt ReBIT JSON",
-    "credit_bureau": "CIBIL / Experian / CRIF commercial bureau API (empty for NTC)",
-    "epfo": "EPFO establishment data via AA (EPF FI type) or ULI",
-    "invoices": "GST e-invoice (IRP) and TReDS platforms",
-    "profile": "Udyam registration + MCA21 for companies",
+    "gstn": "GST portal, shared with the owner's OTP: monthly sales, purchases and filing dates",
+    "upi": "The business's UPI payment app data, or UPI entries in its bank statements",
+    "account_aggregator": "Account Aggregator (RBI consent system): owner approves, bank shares statements",
+    "credit_bureau": "Credit bureau such as CIBIL (empty for new-to-credit businesses)",
+    "epfo": "EPFO monthly provident-fund filings: employees and salaries",
+    "invoices": "GST e-invoices: who buys from the business and how fast they pay",
+    "profile": "Udyam (MSME) registration and company records",
 }
 
 

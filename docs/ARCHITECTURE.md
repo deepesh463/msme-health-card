@@ -1,156 +1,176 @@
 # Solution Architecture
 
+**In one line:** with the business owner's permission, we collect their bank, GST, payroll and UPI data, turn it into a health score and a loan offer, explain the result, and serve it through an API and a dashboard.
+
 ## 1. End-to-end view
+
+The system has five parts. Read the diagram left to right.
 
 ```mermaid
 flowchart LR
-    subgraph Sources["Consent-based data sources"]
-        AA["Account Aggregator<br/>(bank statements)"]
-        GST["GSTN<br/>(GSTR-1 / 3B)"]
-        UPI["UPI / PSP<br/>merchant data"]
-        EPF["EPFO<br/>(payroll)"]
-        INV["E-invoice / TReDS"]
-        CB["Credit bureau<br/>(empty for NTC)"]
+    subgraph Sources["1. Data sources"]
+        BANK["Bank statements"]
+        GST["GST returns"]
+        UPI["UPI payments"]
+        PF["Payroll (EPFO)"]
+        INV["Invoices"]
+        CB["Credit bureau<br/>(empty for new borrowers)"]
     end
-    subgraph Ingest["Ingestion layer"]
-        CM["Consent manager<br/>(AA consent artefacts)"]
-        CON["Source connectors<br/>(one per source)"]
-        VAL["Validation +<br/>schema checks"]
+    subgraph Ingest["2. Data collection"]
+        CON["Consent<br/>(owner's permission)"]
+        FETCH["One connector<br/>per source"]
+        CHK["Checks"]
     end
-    subgraph Core["Scoring core (msme_health)"]
-        FE["Feature engineering<br/>raw + 11 analyst ratios"]
-        ML["Models<br/>PD · Health Score · 6 pillars"]
-        XAI["SHAP explanations<br/>+ reason codes"]
-        AN["Anomaly detection<br/>rules + Isolation Forest"]
-        POL["Credit policy<br/>band · limit · conditions"]
-        PEER["Peer benchmarks<br/>industry × location"]
+    subgraph Core["3. Scoring engine"]
+        FE["Features<br/>(ratios)"]
+        ML["Models<br/>risk · score · 6 pillars"]
+        AN["Fraud checks"]
+        WHY["Explanations<br/>(SHAP)"]
+        POL["Credit policy<br/>(loan offer)"]
     end
-    subgraph Serve["Serving"]
-        API["FastAPI<br/>REST APIs"]
-        DB[("Store<br/>records · cards · audit")]
-        DASH["Streamlit dashboard"]
+    subgraph Serve["4. Delivery"]
+        API["REST API"]
+        DB[("Database")]
+        DASH["Dashboard"]
     end
-    LSP["Lenders / LSPs<br/>(OCEN, ULI)"]
+    USERS["5. Users<br/>Cars24 app · lenders · credit officers"]
 
-    Sources --> CON
-    CM --> CON
-    CON --> VAL --> DB
-    DB --> FE --> ML --> XAI
+    Sources --> FETCH
+    CON --> FETCH --> CHK --> DB
+    DB --> FE --> ML --> WHY
     FE --> AN
     ML --> POL
     AN --> POL
-    FE --> PEER
-    XAI --> API
+    WHY --> API
     POL --> API
-    PEER --> API
     API --> DASH
-    API <--> LSP
+    API --> USERS
 ```
 
-**Design principle:** one scoring core (`src/msme_health`) is shared by training, the API and the dashboard. The same `add_derived()` function computes features everywhere, so there is no training/serving skew.
+| Part | What it does | Where in the code |
+|---|---|---|
+| 1. Data sources | Where the business's financial data lives | Simulated by the 50k dataset |
+| 2. Data collection | Ask permission, fetch each source, check the values | `api/main.py`, `connectors.py`, `schemas.py` |
+| 3. Scoring engine | Build features, predict risk, check for fraud, explain, make the loan offer | `src/msme_health/` |
+| 4. Delivery | Save results and serve them to apps and people | `api/main.py`, `store.py`, `dashboard/app.py` |
+| 5. Users | The Cars24 app, partner lenders, credit officers | Through the API and dashboard |
 
-## 2. Data ingestion pipeline
+**Key design choice:** training, the API and the dashboard all use the **same scoring code**. A feature is calculated the same way when the model is trained and when a live business is scored, so results never differ between the two.
+
+## 2. Data collection (ingestion)
+
+**Four steps: permission → fetch → check → store.**
 
 ```mermaid
 sequenceDiagram
-    participant B as MSME (borrower)
-    participant L as Lender / Cars24 app
-    participant API as Health Card API
-    participant AA as Account Aggregator
-    participant S as Other sources (GSTN, EPFO, UPI)
-    B->>L: Applies for credit
-    L->>API: POST /api/v1/consents
-    API->>AA: Consent request (purpose, FI types, date range)
-    AA->>B: Approve in AA app
-    AA-->>API: Signed consent artefact
-    API->>AA: FI data request (encrypted key exchange)
-    AA-->>API: Encrypted bank / GST data (ReBIT JSON)
-    API->>S: Fetch with consent (GSP, EPFO, PSP)
-    S-->>API: Source payloads
-    Note over API: Validate → merge → store → audit log
-    L->>API: POST /api/v1/msmes/{id}/score
-    API-->>L: Health Card + credit recommendation (< 1 s)
+    participant B as Business owner
+    participant APP as Cars24 app
+    participant API as Our API
+    participant S as Data sources (bank, GST, EPFO, UPI)
+    B->>APP: Applies for a loan
+    APP->>API: Ask for consent
+    API->>B: "Can we read your bank and GST data for 12 months?"
+    B-->>API: Approves
+    API->>S: Fetch data (with the consent)
+    S-->>API: Data
+    Note over API: Check values → merge → save → log
+    APP->>API: Score this business
+    API-->>APP: Health Card + loan offer (under 1 second)
 ```
 
-| Step | Demo implementation | Production implementation |
-|---|---|---|
-| Consent | `POST /consents` creates a mock artefact | AA consent manager, signed artefact, expiry + revocation handling |
-| Fetch | `POST /msmes/{id}/fetch` calls one `MockConnector` per source | Real connectors behind the same `Connector` interface (`connectors.py`) |
-| Partial push | `POST /msmes/{id}/sources/{source}` merges one source's fields | Webhooks / periodic AA fetch; Kafka topic per source |
-| Validation | Pydantic schema with ranges (e.g. 0 ≤ % ≤ 100) | + cross-source reconciliation, deduplication, data-quality metrics |
-| Storage | SQLite (records, cards, consents, audit) | Postgres + object storage (raw payloads, encrypted) + feature store |
+| Step | What happens | In the demo | In production |
+|---|---|---|---|
+| 1. Permission | The owner approves which data, for what purpose and for how long. No permission, no data. | `POST /consents` creates a consent record | The owner approves in an RBI-regulated consent app (Account Aggregator) |
+| 2. Fetch | Pull data from each source | `POST /msmes/{id}/fetch`: one connector per source, reading from the dataset | The same connectors, connected to the real sources |
+| 3. Check | Reject impossible values (e.g. a percentage over 100) | Automatic checks on every field | Plus cross-checks between sources |
+| 4. Store | Save the record and log every step | SQLite database + audit log | A production database (Postgres) |
+
+A source can also **send its data on its own** (`POST /msmes/{id}/sources/{source}`), for example when new GST returns are filed.
+
+**The API enforces consent:** fetching without a valid consent, or with another business's consent, is refused.
 
 ## 3. AI/ML workflow
 
+**Seven steps: explore → build features → split → train → test → explain → score everyone.**
+
 ```mermaid
 flowchart LR
-    D["50k MSMEs"] --> EDA["EDA<br/>(notebook 01)"] --> FEAT["Features<br/>(notebook 02)"]
-    FEAT --> SPLIT["70/15/15 split<br/>stratified by segment × band"]
-    SPLIT --> BASE["Ridge baseline"]
-    SPLIT --> GBM["LightGBM<br/>+ monotonic constraints"]
-    BASE --> EVAL["Test-set evaluation<br/>R², band accuracy, AUC, Gini/KS"]
-    GBM --> EVAL
-    EVAL --> SHAP["SHAP global + local"]
-    EVAL --> ANOM["Anomaly test on<br/>planted fraud"]
-    SHAP --> ART["artifacts/<br/>models · metrics"]
-    ANOM --> ART
-    ART --> BATCH["Batch score 50k<br/>→ portfolio + peers"]
+    D["50k businesses"] --> EDA["1. Explore<br/>(notebook 01)"] --> FEAT["2. Features<br/>(notebook 02)"]
+    FEAT --> SPLIT["3. Split<br/>70% train · 15% tune · 15% test"]
+    SPLIT --> M["4. Train<br/>simple model vs LightGBM"]
+    M --> EVAL["5. Test<br/>on unseen data"]
+    EVAL --> SHAP["6. Explain<br/>(SHAP)"]
+    SHAP --> BATCH["7. Score all 50k"]
 ```
 
-| Component | Choice | Why |
+| Choice | What we did | Why, in plain words |
 |---|---|---|
-| PD target | log-odds of supplied PD | Skewed 0–1 value → smooth unbounded target |
-| Main model | LightGBM regressor, monotonic constraints on 14 features | Handles blanks (no-loan EMI rate), interactions; constraints keep behaviour sensible |
-| Baseline | Ridge on one-hot + scaled features | Scorecard-style; matches LightGBM on this data |
-| Pillars | 6 small LightGBM models (500 trees) | Pillars are near-exact formulas; small models keep memory low |
-| Explainability | TreeSHAP (LightGBM built-in `pred_contrib`, identical to the shap library): waterfall (points), pillar roll-up, reason codes | Additive, exact for trees; reason codes for adverse-action notices |
-| Anomalies | 8 cross-source rules + Isolation Forest (2% alert rate) | Rules catch known fraud; IF catches unknown patterns |
-| Decision | Policy layer: PD band → eligibility → min(policy limit, affordability limit) | Separates model from credit policy, as lenders do |
+| What we predict | Probability of default (PD), the 0–100 health score, the 6 pillar scores | PD is what lenders decide on; the score and pillars are easy for people to read |
+| Main model | LightGBM (many small decision trees) | Strong on table data, handles blanks, fast |
+| Common-sense rules | "Monotonic constraints" on 14 features | Better behaviour can never give a worse score (e.g. filing GST on time can never raise risk) |
+| Comparison model | Ridge (a simple straight-line model, like a bank scorecard) | Proves the complex model is worth it. Here both perform about the same. |
+| Explanations | SHAP: how many points each factor added or removed | Every decision can be explained; decline reasons come from it |
+| Fraud checks | 8 rules + Isolation Forest (flags the most unusual 2%) | Rules catch known tricks; the forest catches unusual patterns |
+| Loan decision | A separate policy: risk band → eligible? → limit → conditions | The risk team can change rules without retraining the model |
 
-**Retraining in production:** monthly or on drift. Track PSI of inputs and scores, then compare challenger vs champion on new outcomes (real defaults at 90+ days past due). Promote via a model registry (MLflow) with sign-off from model-risk management.
+**In production:** retrain regularly. Watch whether incoming data starts to look different from the training data, and only replace the model when a new one beats it on real repayment data.
 
 ## 4. Integration strategy
 
-| Rail | What it is | How this solution plugs in |
-|---|---|---|
-| **Account Aggregator (AA)** | RBI-regulated consent layer for financial data (Sahamati network) | Lender registers as an **FIU**. The consent request covers DEPOSIT (bank statements) and GST FI types. Data arrives encrypted in the ReBIT schema and maps to our AA fields (credits, debits, balance, OD use, volatility, EMI debits). Periodic fetch under the same consent allows **ongoing monitoring** (a condition we attach for Medium-risk loans). |
-| **GSTN** | GST returns | Through a **GST Suvidha Provider (GSP)** with taxpayer OTP consent, or as an FIP through AA. GSTR-1 gives sales, invoice buyers (concentration) and seasonality; GSTR-3B gives tax paid and filing dates (timeliness); GSTR-2B gives purchases. |
-| **OCEN** | Open Credit Enablement Network: protocol between Loan Service Providers (LSPs) and lenders | **Cars24 acts as LSP** for its dealer and fleet customers. With the borrower's consent, the Health Card JSON (score, pillars, reason codes) goes with the OCEN loan application. Lenders use `credit-recommendation` to build their offer (limit, tenure, rate). The API is stateless and JSON-first, so it maps cleanly to OCEN request/response flows. |
-| **ULI** | RBI's Unified Lending Interface: one plug-in for many consented data providers | Each ULI data service becomes another `Connector` (e.g. land records, dairy or utility data). New sources only add features; the scoring API contract doesn't change. |
-| **Banking APIs** | Bank's own statement / CBS APIs, UPI merchant (PSP) data | Used for the lender's existing customers (faster than AA). UPI merchant settlement data gives transaction count and ticket size. |
-| **EPFO** | Payroll filings | ECR filings give headcount, wage bill, on-time salary/PF deposits and attrition. |
-| **Credit bureau** | CIBIL / Experian / CRIF commercial reports | Optional input: blank for NTC by design. The model doesn't depend on it. |
+**Two questions: how does data come IN, and how does the result go OUT?**
 
-## 5. Scalability
+### Data in
 
-| Concern | Demo | At scale |
+| Source | What it is | What we use from it |
 |---|---|---|
-| Latency | ~0.4 s per full card (SHAP for 8 models + what-if re-scoring); ~45 ms score-only | Score-only path fits real-time journeys; compute SHAP lazily or asynchronously; cache cards per data version |
-| Throughput | Single process | Stateless API, so scale out behind a load balancer (Kubernetes HPA) |
-| Batch | 50k businesses in ~12 s on a laptop | Spark / Ray for portfolio re-scoring after each AA refresh |
-| Features | Computed on request | Online feature store (Redis) + offline store (Parquet/Delta) from the same definitions |
-| Ingestion | Synchronous calls | Kafka topic per source; retries and dead-letter queues |
-| Models | joblib artifacts in the repo | MLflow registry, versioned; champion–challenger routing |
+| **Bank statements** (through an **Account Aggregator**) | RBI's consent system: the owner taps "approve" in an app and their bank shares statements | Money in and out, balance, overdraft use, EMIs |
+| **GST portal** | Monthly tax returns, shared with the owner's OTP | Sales, purchases, whether GST was filed on time |
+| **EPFO** | Monthly provident-fund filings by employers | Employees, salary total, salary paid on time |
+| **UPI provider** | The business's payment app data | Daily transactions, payment size, UPI income |
+| **GST e-invoices** | Invoices the business raises and receives | How fast customers pay, dependence on top customers, paying suppliers on time |
+| **Credit bureau** (e.g. CIBIL) | Loan history | EMI record. **Optional**: empty for new-to-credit businesses, and the model works without it |
+| **Business registration** (Udyam) | The MSME's official registration | Industry, business type, age, location |
+
+**In the code:** every source sits behind **one common "connector" design** (`connectors.py`). The demo uses mock connectors that read from the dataset. Going live means replacing each mock with a real connector. **The model and the API do not change.** Adding a new source later is just one more connector.
+
+### Result out
+
+| Who | How they use it |
+|---|---|
+| **Cars24 app** | Calls the API when a dealer or fleet owner applies; shows the offer in seconds |
+| **Partner lenders** | Cars24 can send the Health Card along with the loan application, so several lenders can make offers |
+| **Credit officers** | Use the dashboard to review a business, its reasons and fraud flags |
+
+Everything goes through the **REST API**, so any system in any language can use it.
+
+## 5. Scaling up
+
+| Topic | Today (demo) | With more traffic |
+|---|---|---|
+| Speed | ~45 ms for a score, ~0.4 s for a full card with explanations | Fast enough for a live loan journey |
+| More users | One server | The API keeps no memory between requests, so we just run more copies of it |
+| Whole portfolio | All 50k scored in ~12 s on a laptop | Re-score in a scheduled batch job |
+| Data arriving | Direct API calls | A queue per source, so nothing is lost if a source is slow |
+| Models | Saved files in the repo | Versioned, so we can roll back to an older model |
 
 ## 6. Security and compliance
 
-- **Consent first:** no fetch without a valid consent artefact. Data use is limited to the stated purpose (DPDP Act 2023, AA framework).
-- **RBI Digital Lending Guidelines:** data collected only with explicit consent, Key Fact Statement from the limit/rate/EMI fields, LSP (Cars24) disclosed to the borrower.
-- **Explainability:** reason codes back decline notices (Fair Practices Code). Monotonic constraints prevent counter-intuitive outcomes.
-- **Audit:** every consent, fetch, score and decision is written to `audit_log`.
-- **Fairness:** model accuracy is checked per segment (NTC / NTB / Existing). Protected attributes are not used.
-- **Data protection (production):** encryption at rest and in transit, PII tokenisation, retention tied to consent expiry.
+- **Consent first:** no data is fetched without the owner's permission, and data is used only for the stated purpose (India's data-protection law, DPDP Act 2023).
+- **Explainable decisions:** every decline has reasons, as RBI's fair-lending rules expect.
+- **Audit log:** every consent, fetch, score and decision is recorded.
+- **Fairness:** accuracy is checked separately for new-to-credit, new-to-bank and existing borrowers. No personal attributes (gender, religion and so on) are used.
+- **Production:** encrypt data, mask personal details, delete data when consent expires.
 
 ## 7. Technology stack
 
 | Layer | Technology |
 |---|---|
 | Language | Python 3.12 |
-| Data & features | pandas, NumPy, PyArrow (Parquet) |
+| Data | pandas, NumPy |
 | ML | LightGBM, scikit-learn (Ridge, Isolation Forest), SHAP |
-| API | FastAPI + Pydantic + Uvicorn (OpenAPI docs at `/docs`) |
+| API | FastAPI (auto-generated docs at `/docs`) |
 | Dashboard | Streamlit + Plotly |
 | Storage | SQLite (demo) → Postgres (production) |
-| Notebooks | Jupyter (executed outputs saved) |
-| Testing | pytest (API flow + behavioural/monotonicity tests) |
-| Deployment | Render (Blueprint `render.yaml`), Docker |
+| Notebooks | Jupyter |
+| Testing | pytest (19 tests) |
+| Deployment | Render, Docker |

@@ -81,7 +81,7 @@ def recommend(row: dict, pd_value: float, anomaly_flags: list[str], is_outlier: 
         if band == "Medium":
             conditions.append("Monthly monitoring of bank flows through the Account Aggregator")
         if float(row.get("Customer_Concentration_Ratio", 0)) > 0.6:
-            conditions.append("High dependence on few customers: consider invoice-backed (TReDS) financing")
+            conditions.append("High dependence on few customers: consider invoice-backed financing")
         if int(row.get("Thin_File", 0)) == 1:
             conditions.append("New-to-credit: start with a smaller ticket and step up after 6 clean EMIs")
 

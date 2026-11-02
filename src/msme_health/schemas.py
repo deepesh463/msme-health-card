@@ -78,7 +78,7 @@ class MSMEData(BaseModel):
 class ConsentRequest(BaseModel):
     msme_id: str = Field(..., examples=["MSME0000001"])
     purpose: str = "MSME credit underwriting"
-    fi_types: list[str] = Field(default=["DEPOSIT", "GSTR1_3B", "EPF"], description="Data types requested (ReBIT FI types)")
+    fi_types: list[str] = Field(default=["DEPOSIT", "GSTR1_3B", "EPF"], description="Data types requested: bank statements, GST returns, payroll")
     data_range_months: int = Field(12, ge=1, le=36)
     consent_validity_days: int = Field(90, ge=1, le=365)
 

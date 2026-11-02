@@ -114,9 +114,9 @@ SOURCE_OF = {
     "Salary_Consistency_Pct": "EPFO",
     "Employee_Attrition_Rate_Pct": "EPFO",
     "Employee_Count": "EPFO",
-    "Avg_Invoice_Payment_Delay_Days": "Invoices (TReDS / e-invoice)",
-    "Customer_Concentration_Ratio": "Invoices (TReDS / e-invoice)",
-    "Vendor_Payment_Timeliness_Pct": "Invoices (TReDS / e-invoice)",
+    "Avg_Invoice_Payment_Delay_Days": "Invoices (GST e-invoices)",
+    "Customer_Concentration_Ratio": "Invoices (GST e-invoices)",
+    "Vendor_Payment_Timeliness_Pct": "Invoices (GST e-invoices)",
 }
 
 RANDOM_STATE = 42
