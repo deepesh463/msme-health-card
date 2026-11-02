@@ -75,7 +75,7 @@ sequenceDiagram
     S-->>API: Data
     Note over API: Check values → merge → save → log
     APP->>API: Score this business
-    API-->>APP: Health Card + loan offer (under 1 second)
+    API-->>APP: Health Card + loan offer (~0.5 second)
 ```
 
 | Step | What happens | In the demo | In production |
@@ -145,13 +145,41 @@ Everything goes through the **REST API**, so any system in any language can use 
 
 ## 5. Scaling up
 
+### Measured (laptop, this repo)
+
+| What | Time / size |
+|---|---|
+| Full card (8 models + SHAP + what-if), first view | 0.45 s (95% under 0.52 s) |
+| Same card viewed again (saved) | 7 ms |
+| Score only, no explanations | ~0.1 s (PD model alone: 22 ms) |
+| Portfolio dashboard numbers | 13 ms |
+| Re-score all 50,000 businesses | 5.7 s |
+| Memory per API copy | ~350 MB |
+| One saved card | ~9 KB |
+
+### Capacity (estimate)
+
+One copy handles about **2 full cards a second**. Explanations take about 80% of that time.
+
+- **Assume 10,000 applications a day**, with 15% in the busiest hour. That is about 1,500 an hour, or one every 2–3 seconds. **One small server is enough, with about 5× headroom.**
+- **At 1 lakh a day**, the peak is about 4 a second. **3–4 copies** (about 1.4 GB in total) fit on one 4-core server.
+- **At 10 lakh (1 million) a day**, the peak is about 42 a second. That needs **about 20 copies** (about 7 GB in total) on 5–6 servers, behind a load balancer that adds copies automatically. If the decision comes first and explanations later, **about 6 copies** are enough.
+- **Batch:** 10 lakh businesses re-scored in about 2 minutes.
+- **Storage:** 10 lakh cards a month is about 9 GB a month.
+
+Quick formula: peak per second = daily applications × 0.15 ÷ 3,600. Divide by 2 to get the number of copies needed.
+
+### What changes as it grows
+
 | Topic | Today (demo) | With more traffic |
 |---|---|---|
-| Speed | ~45 ms for a score, ~0.4 s for a full card with explanations | Fast enough for a live loan journey |
-| More users | One server | The API keeps no memory between requests, so we just run more copies of it |
-| Whole portfolio | All 50k scored in ~12 s on a laptop | Re-score in a scheduled batch job |
+| More users | One server | The API keeps no memory between requests, so we run more copies of it |
+| Saved data | SQLite, a file on one server | One shared Postgres, so every copy sees the same consents, cards and audit log. **This is the first thing to break.** |
+| Speed | Decision and explanations together (0.45 s) | Return the decision first (~0.1 s) and compute explanations in the background. Saved cards return in 7 ms. |
 | Data arriving | Direct API calls | A queue per source, so nothing is lost if a source is slow |
+| Whole portfolio | 50k scored in under 6 s | Scheduled nightly batch job |
 | Models | Saved files in the repo | Versioned, so we can roll back to an older model |
+| Hosting | Render free tier, which sleeps when idle (first request takes about 1 min) | A paid plan that is always on |
 
 ## 6. Security and compliance
 
