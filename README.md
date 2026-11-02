@@ -8,6 +8,26 @@ An explainable credit-assessment system for **new-to-credit (NTC)** and **new-to
 > **Live demo:** [Dashboard](https://msme-health-dashboard.onrender.com/) · [API docs](https://msme-health-api-yx6e.onrender.com/docs) · [Slides (PDF)](docs/MSME_Health_Card_deck.pdf)
 > Free hosting: if a link has been idle, the first load takes about a minute while it wakes up.
 
+## Where to find each deliverable
+
+| # | Deliverable (from the brief) | Solution | Where to look |
+|---|---|---|---|
+| 1 | **Solution Architecture**: end-to-end architecture, data ingestion pipeline, AI/ML workflow, integration approach, technology stack | Architecture doc with diagrams; ingestion code (consent → fetch → check → store) | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §1–6 · [`src/msme_health/connectors.py`](src/msme_health/connectors.py) · [`api/main.py`](api/main.py) · Slides 4, 5, 6, 12 |
+| 2 | **Financial Health Card**: overall score (0–100), 6 pillar scores, risk indicators, insights and recommendations | Card built by the scoring engine; shown in the dashboard and returned by the API | [Dashboard → MSME Health Card](https://msme-health-dashboard.onrender.com/) · [`src/msme_health/engine.py`](src/msme_health/engine.py) · [`dashboard/pages/health_card.py`](dashboard/pages/health_card.py) · `GET /api/v1/msmes/{id}/health-card` · Slide 7 |
+| 3 | **AI/ML Model**: financial health, credit eligibility, anomaly detection, explainability (SHAP) | 9 models: PD, health score, 6 pillars (LightGBM) and fraud (Isolation Forest + rules); credit policy; SHAP | [`notebooks/03_modelling.ipynb`](notebooks/03_modelling.ipynb) · [`src/msme_health/train.py`](src/msme_health/train.py) · [`anomaly.py`](src/msme_health/anomaly.py) · [`recommend.py`](src/msme_health/recommend.py) · [`artifacts/metrics.json`](artifacts/metrics.json) · Slides 8, 9 |
+| 4 | **Dashboard**: score, revenue, cash flow, GST, UPI, payroll, risk, credit recommendation, explainability | Streamlit app with 5 pages: Portfolio overview, MSME Health Card, What-if simulator, Score a new business, Model & methodology | [Live dashboard](https://msme-health-dashboard.onrender.com/) · [`dashboard/`](dashboard) |
+| 5 | **API Design**: data ingestion, score generation, card retrieval, credit recommendation, dashboard integration | FastAPI REST API with interactive docs | [Live API docs](https://msme-health-api-yx6e.onrender.com/docs) · [`api/main.py`](api/main.py) · [API table below](#api-at-a-glance) · Slide 10 |
+| 6 | **Integration Strategy**: ULI, OCEN, Account Aggregator, GSTN, Banking APIs | How data comes in and results go out; one connector per source | [`docs/ARCHITECTURE.md` §4](docs/ARCHITECTURE.md#4-integration-strategy) · [`src/msme_health/connectors.py`](src/msme_health/connectors.py) · Slide 11 |
+
+**Supporting work**
+
+| What | Where |
+|---|---|
+| Data exploration (nulls, outliers, correlations, segments) | [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) |
+| Feature engineering and new-feature tests | [`notebooks/02_feature_engineering.ipynb`](notebooks/02_feature_engineering.ipynb) · [`docs/FEATURE_DICTIONARY.md`](docs/FEATURE_DICTIONARY.md) |
+| Presentation | [`docs/MSME_Health_Card_deck.pdf`](docs/MSME_Health_Card_deck.pdf) |
+| Tests | [`tests/`](tests) (`pytest -q`) |
+
 ---
 
 ## Why it matters
@@ -15,18 +35,6 @@ An explainable credit-assessment system for **new-to-credit (NTC)** and **new-to
 42% of the 50,000 businesses in the dataset are NTC: no loan, no bureau history. A bureau-only lender rejects all of them. On alternate data, **about 73% of NTC businesses are not high-risk**, nearly the same as existing borrowers (78%). This system finds them, explains why, and sizes a loan they can afford.
 
 **Cars24 angle:** Cars24's business customers include used-car dealers and fleet operators. Acting as a loan marketplace for them, Cars24 could use the Health Card to offer dealer inventory finance and commercial-vehicle loans to businesses that banks currently can't assess.
-
-## What's inside
-
-| Deliverable (from the brief) | Where |
-|---|---|
-| 1. Solution architecture, ingestion pipeline, AI/ML workflow, integration, tech stack | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
-| 2. Financial Health Card: score, 6 pillars, risk indicators, insights | Dashboard → *MSME Health Card*; `GET /api/v1/msmes/{id}/health-card` |
-| 3. AI/ML model: health prediction, credit eligibility, anomaly detection, SHAP | [`src/msme_health/`](src/msme_health), [`notebooks/03_modelling.ipynb`](notebooks/03_modelling.ipynb) |
-| 4. Dashboard: score, revenue, cash flow, GST, UPI, payroll, risk, recommendation, explainability | [`dashboard/`](dashboard) (5 pages) |
-| 5. REST APIs: ingestion, scoring, card, recommendation, dashboard | [`api/main.py`](api/main.py), OpenAPI at `/docs` |
-| 6. Integration strategy: Account Aggregator, GSTN, ULI, OCEN, Banking APIs; how data comes in and results go out | [`docs/ARCHITECTURE.md §4`](docs/ARCHITECTURE.md#4-integration-strategy) |
-| Research: EDA, features | [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb), [`notebooks/02_feature_engineering.ipynb`](notebooks/02_feature_engineering.ipynb), [`docs/FEATURE_DICTIONARY.md`](docs/FEATURE_DICTIONARY.md) |
 
 ## Results (held-out test set, 7,500 businesses)
 
@@ -142,13 +150,3 @@ docs/                ARCHITECTURE.md · FEATURE_DICTIONARY.md
 tests/               API flow + behavioural tests
 data/raw/            supplied dataset (50k synthetic MSMEs)
 ```
-
-## Limitations and next steps
-
-- **No observed defaults.** The models learn the supplied scoring, not real repayment. With real outcomes:
-  - train a classifier on 90+ days-past-due within 12 months;
-  - validate it out-of-time;
-  - run Ridge as champion and LightGBM as challenger.
-- **Snapshot data.** There is no monthly history, so "trends" are shown as peer comparisons and a seasonal lean / average / peak profile. With AA and GST time series, add rolling features: 3/6/12-month trends, bounce counts, balance dips.
-- **Mocked connectors.** Real AA, GSTN and EPFO clients plug in behind the same interface.
-- **Drift and monitoring** (PSI, score stability, approval rates by segment) are designed but not built.
