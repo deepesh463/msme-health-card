@@ -24,6 +24,7 @@ An explainable credit-assessment system for **new-to-credit (NTC)** and **new-to
 | What | Where |
 |---|---|
 | Data exploration (nulls, outliers, correlations, segments) | [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) |
+| Rules used at each step: direction rules, fraud rules, traffic lights, credit policy | [`docs/ARCHITECTURE.md` → Rules used at each step](docs/ARCHITECTURE.md#rules-used-at-each-step) |
 | Feature engineering and new-feature tests | [`notebooks/02_feature_engineering.ipynb`](notebooks/02_feature_engineering.ipynb) · [`docs/FEATURE_DICTIONARY.md`](docs/FEATURE_DICTIONARY.md) |
 | Presentation | [`docs/MSME_Health_Card_deck.pdf`](docs/MSME_Health_Card_deck.pdf) |
 | Tests | [`tests/`](tests) (`pytest -q`) |
