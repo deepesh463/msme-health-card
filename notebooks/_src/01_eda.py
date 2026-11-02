@@ -222,7 +222,7 @@ print("Smallest level of any category:", min((df[c].value_counts().min(), c) for
 # %% [markdown]
 # **Takeaway:** no rare levels (smallest is still ~2,500 rows), no typos or mixed spellings, low cardinality (≤10 levels). We can use the categories directly in LightGBM with no grouping of rare levels.
 #
-# ### 2h. How the categories relate to each other (Cramér's V)
+# ### 2h. How the categories relate to each other
 #
 # Cramér's V is a 0–1 measure of association between two categorical columns (0 = unrelated, 1 = one fully decides the other).
 
