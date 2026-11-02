@@ -133,12 +133,24 @@ flowchart LR
 
 **In the code:** every source sits behind **one common "connector" design** (`connectors.py`). The demo uses mock connectors that read from the dataset. Going live means replacing each mock with a real connector. **The model and the API do not change.** Adding a new source later is just one more connector.
 
+### How it plugs into India's lending rails
+
+The brief names five systems. This is what each one is and how we use it.
+
+| System | What it is, in plain words | How we use it |
+|---|---|---|
+| **Account Aggregator (AA)** | RBI's consent system for financial data. The owner approves in an app, and their bank sends statements directly to us. | Our main way to get bank statements. Our consent step follows the AA flow: which data, what purpose, how long. |
+| **GSTN** | The GST Network, the government's tax system. Access goes through a licensed GST provider, with the owner's OTP. | GST returns: sales, purchases, filing on time. Drives the compliance and revenue scores. |
+| **ULI** (Unified Lending Interface) | RBI's single gateway for lenders. One connection gives access to many data sources: GST, bank data via AA, land records, PAN checks and more. | Instead of building a separate connector for every source, we can fetch through ULI. It is just one more connector in our design. |
+| **OCEN** (Open Credit Enablement Network) | A common "language" (standard APIs) that lets platforms like Cars24 connect to many lenders at once. Cars24 acts as the loan marketplace. | The Health Card and loan offer go with the loan application over OCEN, so several lenders can compete to make an offer. |
+| **Banking APIs** | Banks' own APIs for checking an account, fetching statements and paying out the loan. | Verify the business's account, and pay out the loan once a lender approves. |
+
 ### Result out
 
 | Who | How they use it |
 |---|---|
 | **Cars24 app** | Calls the API when a dealer or fleet owner applies; shows the offer in seconds |
-| **Partner lenders** | Cars24 can send the Health Card along with the loan application, so several lenders can make offers |
+| **Partner lenders** | Over OCEN, Cars24 sends the Health Card with the loan application, so several lenders can make offers |
 | **Credit officers** | Use the dashboard to review a business, its reasons and fraud flags |
 
 Everything goes through the **REST API**, so any system in any language can use it.
@@ -170,15 +182,7 @@ Everything goes through the **REST API**, so any system in any language can use 
 9. **Nightly batch** for re-scoring the whole portfolio, and **versioned models** that can be rolled back.
 10. **Monitoring.** Track response time, errors, requests per second and queue length, and alert when they go past limits.
 
-## 6. Security and compliance
-
-- **Consent first:** no data is fetched without the owner's permission, and data is used only for the stated purpose (India's data-protection law, DPDP Act 2023).
-- **Explainable decisions:** every decline has reasons, as RBI's fair-lending rules expect.
-- **Audit log:** every consent, fetch, score and decision is recorded.
-- **Fairness:** accuracy is checked separately for new-to-credit, new-to-bank and existing borrowers. No personal attributes (gender, religion and so on) are used.
-- **Production:** encrypt data, mask personal details, delete data when consent expires.
-
-## 7. Technology stack
+## 6. Technology stack
 
 | Layer | Technology |
 |---|---|

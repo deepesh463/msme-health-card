@@ -25,7 +25,7 @@ An explainable credit-assessment system for **new-to-credit (NTC)** and **new-to
 | 3. AI/ML model: health prediction, credit eligibility, anomaly detection, SHAP | [`src/msme_health/`](src/msme_health), [`notebooks/03_modelling.ipynb`](notebooks/03_modelling.ipynb) |
 | 4. Dashboard: score, revenue, cash flow, GST, UPI, payroll, risk, recommendation, explainability | [`dashboard/`](dashboard) (5 pages) |
 | 5. REST APIs: ingestion, scoring, card, recommendation, dashboard | [`api/main.py`](api/main.py), OpenAPI at `/docs` |
-| 6. Integration strategy: how data comes in (bank, GST, EPFO, UPI) and how results go out | [`docs/ARCHITECTURE.md §4`](docs/ARCHITECTURE.md#4-integration-strategy) |
+| 6. Integration strategy: Account Aggregator, GSTN, ULI, OCEN, Banking APIs; how data comes in and results go out | [`docs/ARCHITECTURE.md §4`](docs/ARCHITECTURE.md#4-integration-strategy) |
 | Research: EDA, features | [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb), [`notebooks/02_feature_engineering.ipynb`](notebooks/02_feature_engineering.ipynb), [`docs/FEATURE_DICTIONARY.md`](docs/FEATURE_DICTIONARY.md) |
 
 ## Results (held-out test set, 7,500 businesses)
