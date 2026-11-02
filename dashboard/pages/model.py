@@ -54,9 +54,19 @@ with t2:
     with b:
         allimp = pd.Series(m["pd_shap_importance"])
         by_p = allimp.groupby(allimp.index.map(lambda f: FEATURE_PILLAR.get(f, "Other"))).sum().sort_values()
-        fig = px.pie(values=by_p.values, names=by_p.index, hole=0.55)
-        fig.update_layout(title="Share of explanatory power by pillar")
-        st.plotly_chart(style_fig(fig, 380), use_container_width=True)
+        share = by_p / by_p.sum()
+        fig = go.Figure(go.Bar(
+            x=share.values, y=list(share.index), orientation="h",
+            marker_color=[INDIGO if v == share.max() else "#A5B4FC" for v in share.values],
+            text=[f"{v:.0%}" for v in share.values], textposition="outside", cliponaxis=False,
+            hovertemplate="%{y}: %{x:.1%} of the model's explanation<extra></extra>",
+        ))
+        fig.update_xaxes(visible=False, range=[0, float(share.max()) * 1.25])
+        fig.update_layout(title="Which pillar explains default risk most")
+        style_fig(fig, 380, legend=False)
+        fig.update_layout(margin=dict(r=40))
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.caption("Share of the model's total SHAP importance, grouped by pillar.")
     st.caption("Each Health Card shows its own local SHAP explanation (waterfall) and adverse-action reason codes.")
 with t3:
     a, b = st.columns(2)

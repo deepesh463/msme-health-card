@@ -234,8 +234,10 @@ class HealthCardEngine:
         strengths, concerns = [], []
         for r in top_s.itertuples():
             (strengths if r.impact > 0 else concerns).append(f"{r.label} ({'+' if r.impact > 0 else ''}{r.impact:.1f} pts)")
-        best = max(pillars, key=lambda x: x["score"])
-        worst = min(pillars, key=lambda x: x["score"])
+        # Rank pillars the same way as their grades: against all MSMEs, not by raw score.
+        rank = lambda x: x["population_percentile"] if x.get("population_percentile") is not None else x["score"]
+        best = max(pillars, key=rank)
+        worst = min(pillars, key=rank)
 
         # What-if: move each actionable metric to the peer 75th-percentile level and re-score.
         actions = []

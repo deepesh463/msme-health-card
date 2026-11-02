@@ -26,6 +26,10 @@ h1, h2, h3 { letter-spacing: -0.02em; }
         border-radius: 20px; padding: 22px 28px; margin-bottom: 18px; box-shadow: 0 10px 30px rgba(79,70,229,.25); }
 .hero h1 { color:#fff; margin: 0 0 4px 0; font-size: 1.75rem; font-weight: 800; }
 .hero p { color: #E0E7FF; margin: 0; font-size: .95rem; }
+div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .chart-head) { background:#fff; border:1px solid #E2E8F0 !important;
+        border-radius:14px !important; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.04); }
+.chart-head .t { font-size:.95rem; font-weight:700; color:#0F172A; }
+.chart-head .s { font-size:.76rem; color:#64748B; margin-top:2px; }
 .card { background:#fff; border:1px solid #E5E7EB; border-radius:16px; padding:16px 18px;
         box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.04); height:100%; }
 .card h4 { margin:0 0 6px 0; font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; color:#64748B; font-weight:600; }
@@ -166,6 +170,21 @@ def chips(items: list[str], grey: bool = False) -> str:
 
 def badge(text: str, color: str) -> str:
     return f'<span class="badge" style="background:{color}">{text}</span>'
+
+
+def chart_card(title: str, subtitle: str = ""):
+    """White card with a title and subtitle, matching the HTML tables. Use as `with chart_card(...):`."""
+    box = st.container(border=True)
+    box.markdown(f'<div class="chart-head"><div class="t">{title}</div>'
+                 + (f'<div class="s">{subtitle}</div>' if subtitle else "") + "</div>", unsafe_allow_html=True)
+    return box
+
+
+def show_fig(fig: go.Figure, height: int = 320, legend: bool = True):
+    """Plot inside a chart_card: no Plotly title (the card has one), tight margins."""
+    style_fig(fig, height, legend)
+    fig.update_layout(title=None, margin=dict(l=8, r=8, t=34 if legend else 6, b=8))
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
 def style_fig(fig: go.Figure, height: int = 320, legend: bool = True) -> go.Figure:

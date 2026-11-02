@@ -11,7 +11,7 @@ from msme_health.features import LABELS
 from ui import (AMBER, BAND_COLOR, DECISION_COLOR, GREEN, INDIGO, LEVEL_COLOR, RED, SLATE, badge,
                 card, chips, gauge, grade_key, overall_grade_key, inr, pillar_tile, style_fig)
 
-PCT_METRICS = {"Net_Surplus_Ratio", "Lean_Month_Surplus_Ratio", "Overdraft_Usage_Ratio"}
+PCT_METRICS = {"Net_Surplus_Ratio", "Lean_Month_Surplus_Ratio", "Overdraft_Usage_Ratio", "Customer_Concentration_Ratio"}
 
 
 def _fmt(metric: str, v: float) -> str:
@@ -21,6 +21,8 @@ def _fmt(metric: str, v: float) -> str:
         return f"{v:.1f}%"
     if metric in PCT_METRICS:
         return f"{v:.0%}"
+    if metric == "Years_in_Operation":
+        return f"{v:.1f} years"
     if metric.endswith("_Days"):
         return f"{v:.0f} days"
     return f"{v:,.2f}"
@@ -292,31 +294,75 @@ def money_tab(c: dict, raw: dict):
         st.plotly_chart(style_fig(fig, 300, legend=False), use_container_width=True, config={"displayModeBar": False})
 
 
+def _val(feature: str, v) -> str:
+    return "—" if v is None else (_fmt(feature, v) if isinstance(v, (int, float)) else str(v))
+
+
+def _factor_card(title: str, icon: str, accent: str, soft: str, drivers: list, empty: str, pillar_label: str, pillar) -> str:
+    """Strengths or concerns: each factor with this business's value and its effect in score points."""
+    rows = "".join(
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #F1F5F9">'
+        f'<div style="min-width:0"><div style="font-size:.86rem;font-weight:600;color:#0F172A">{d["label"]}</div>'
+        f'<div style="font-size:.74rem;color:#64748B">This business: {_val(d["feature"], d["value"])}</div></div>'
+        f'<span style="flex:none;font-size:.78rem;font-weight:700;background:{soft};color:{accent};padding:3px 10px;border-radius:999px">'
+        f'{d["impact_points"]:+.1f} pts</span></div>'
+        for d in drivers
+    ) or f'<div style="font-size:.84rem;color:#64748B;padding:9px 0;border-top:1px solid #F1F5F9">{empty}</div>'
+    pill = ""
+    if pillar:
+        pill = (f'<div style="margin-top:10px;font-size:.78rem;color:#475569">{pillar_label}: '
+                f'<b style="color:#0F172A">{pillar["name"]}</b> · grade {pillar["grade"]}'
+                + (f' · better than {pillar["population_percentile"]:.0f}% of MSMEs' if pillar.get("population_percentile") is not None else "")
+                + '</div>')
+    return (
+        f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-top:4px solid {accent};border-radius:14px;padding:14px 16px;height:100%">'
+        f'<div style="font-size:.95rem;font-weight:700;color:#0F172A;margin-bottom:4px">{icon} {title}</div>'
+        f'{rows}{pill}</div>'
+    )
+
+
 def insights_tab(c: dict):
     ins = c["insights"]
+    drivers = c["explanation"]["top_drivers"]
+    pillars = {p["name"]: p for p in c["pillars"]}
+    ups = [d for d in drivers if d["impact_points"] > 0][:3]
+    downs = [d for d in drivers if d["impact_points"] < 0][:3]
     a, b = st.columns(2)
     with a:
-        st.markdown("#### 💪 Strengths")
-        for s in ins["strengths"] or ["No standout strengths vs the average MSME."]:
-            st.markdown(f'<div class="insight" style="border-color:{GREEN}">{s}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="small">Strongest pillar: <b>{ins["strongest_pillar"]}</b></div>', unsafe_allow_html=True)
+        st.markdown(_factor_card("Strengths", "💪", "#15803D", "#DCFCE7", ups, "No standout strengths vs the average MSME.",
+                                 "Strongest pillar", pillars.get(ins["strongest_pillar"])), unsafe_allow_html=True)
     with b:
-        st.markdown("#### ⚠️ Concerns")
-        for s in ins["concerns"] or ["No major concerns vs the average MSME."]:
-            st.markdown(f'<div class="insight" style="border-color:{RED}">{s}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="small">Weakest pillar: <b>{ins["weakest_pillar"]}</b></div>', unsafe_allow_html=True)
-    st.markdown("#### 🎯 What would improve this business's score")
-    st.caption("Each action moves one metric to the level of the better-performing quarter of peers, then re-scores with the model.")
+        st.markdown(_factor_card("Concerns", "⚠️", "#B91C1C", "#FEE2E2", downs, "No major concerns vs the average MSME.",
+                                 "Weakest pillar", pillars.get(ins["weakest_pillar"])), unsafe_allow_html=True)
+    st.caption("Points = how much each factor moved this business's score compared with the average MSME (SHAP).")
+
+    st.markdown("#### 🎯 How this business can improve its score")
+    st.caption("Each action moves one number to the level of the best 25% of similar businesses, then re-scores with the model.")
     acts = ins["improvement_actions"]
     if not acts:
-        st.success("Already at or above the peer top-quarter on every actionable metric.")
-    for act in acts:
-        st.markdown(
-            f'<div class="insight" style="border-color:{INDIGO}"><b>{act["action"]}</b><br>'
-            f'<span class="small">{LABELS.get(act["feature"], act["feature"])}: {act["from"]:,} → {act["to"]:,}</span>'
-            f'<span style="float:right"><b style="color:{GREEN}">+{act["score_gain"]} pts</b> · default risk −{act["pd_drop_pct_points"]} pp</span></div>',
-            unsafe_allow_html=True,
-        )
+        st.success("Already at or above the best 25% of similar businesses on every number it can change.")
+        return
+    pd_now = c["probability_of_default"]
+    cols = st.columns(2)
+    for i, act in enumerate(acts):
+        f = act["feature"]
+        with cols[i % 2]:
+            st.markdown(
+                '<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;margin-bottom:12px">'
+                '<div style="display:flex;gap:10px;align-items:flex-start">'
+                f'<div style="flex:none;width:26px;height:26px;border-radius:50%;background:#EEF2FF;color:#4338CA;font-weight:800;'
+                f'font-size:.82rem;display:flex;align-items:center;justify-content:center">{i + 1}</div>'
+                '<div style="flex:1;min-width:0">'
+                f'<div style="font-size:.9rem;font-weight:700;color:#0F172A">{act["action"]}</div>'
+                f'<div style="font-size:.78rem;color:#475569;margin-top:3px">{LABELS.get(f, f)}: '
+                f'<b>{_val(f, act["from"])}</b> → <b style="color:#15803D">{_val(f, act["to"])}</b></div>'
+                '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
+                f'<span style="font-size:.76rem;font-weight:700;background:#DCFCE7;color:#166534;padding:3px 10px;border-radius:999px">Score +{act["score_gain"]} pts</span>'
+                f'<span style="font-size:.76rem;font-weight:700;background:#EEF2FF;color:#4338CA;padding:3px 10px;border-radius:999px">'
+                f'Default risk {pd_now:.1%} → {max(pd_now - act["pd_drop_pct_points"] / 100, 0):.1%}</span>'
+                '</div></div></div></div>',
+                unsafe_allow_html=True,
+            )
 
 
 def render(c: dict, raw: dict, given: dict | None = None):
