@@ -104,6 +104,158 @@ seg.style.format({"share": "{:.1%}", "with_loan": "{:.1%}"})
 # - **NTC** (42%): no loan, no credit history. The bureau is empty, so alternate data is the only signal.
 # - **NTB** (30%): new to *this* lender; 23% have a loan elsewhere.
 # - **Existing-to-Credit** (28%): all have loans and a bureau history.
+#
+# ### 2b. Null count for every column
+#
+# The table above only shows columns with blanks. Here is the full picture: every column, its null count and its null %.
+
+# %%
+nulls = pd.DataFrame({"null_count": df.isna().sum(), "null_%": (df.isna().mean() * 100).round(2)})
+nulls["group"] = np.where(nulls.index == "MSME_ID", "ID", np.where(nulls.index.isin(CATEGORICAL), "categorical",
+                          np.where(nulls.index.isin(answer_cols), "answer", "numeric input")))
+print(f"Total cells: {df.size:,} · null cells: {df.isna().sum().sum():,} ({df.isna().sum().sum() / df.size:.2%})")
+print(f"Columns with any null: {(nulls.null_count > 0).sum()} of {df.shape[1]}")
+print(f"Rows with at least one null: {df.isna().any(axis=1).sum():,} ({df.isna().any(axis=1).mean():.1%})")
+nulls.sort_values("null_count", ascending=False)
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(16, 4))
+smp_rows = df.sample(2000, random_state=1).sort_values("Has_Existing_Loan")
+sns.heatmap(smp_rows.isna(), cbar=False, ax=axes[0], cmap=["#E5E7EB", "#EF4444"], yticklabels=False)
+axes[0].set_title("Null map (2,000 sampled rows, sorted by Has_Existing_Loan; red = null)")
+axes[0].tick_params(axis="x", labelsize=6)
+miss_seg = df.groupby("Customer_Segment").EMI_On_Time_Rate_Pct.apply(lambda s: s.isna().mean()).reindex(["NTC", "NTB", "Existing-to-Credit"])
+axes[1].bar(miss_seg.index, miss_seg.values, color="#6366F1")
+for i, v in enumerate(miss_seg.values):
+    axes[1].text(i, v + 0.01, f"{v:.0%}", ha="center")
+axes[1].set_title("EMI on-time rate: null share by segment")
+axes[1].set_ylim(0, 1.1)
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ### 2c. Hidden nulls: zeros that mean "not applicable"
+#
+# A null count of 0 does not mean a column is fully informative. Some zeros are really **"does not apply"**.
+
+# %%
+zeros = (df[NUMERIC_RAW] == 0).sum()
+zeros = zeros[zeros > 0].to_frame("zero_count")
+zeros["zero_%"] = (zeros.zero_count / len(df) * 100).round(2)
+zeros["zero_when_no_loan_%"] = [round(((df[c] == 0) & (df.Has_Existing_Loan == "No")).sum() / max(z, 1) * 100, 1) for c, z in zeros.zero_count.items()]
+zeros
+
+# %% [markdown]
+# **Takeaway:**
+# - `Monthly_Loan_EMI_INR` = 0 and `Credit_History_Months` = 0 for exactly the **32,556 businesses with no loan**, the same rows where EMI on-time rate is null. These three columns describe one fact, "no credit history", so the `Thin_File` flag captures it in a single feature.
+# - The few zeros in overdraft use, invoice delay and growth are genuine values (no overdraft, paid on the day, flat sales), not missing data.
+#
+# ### 2d. Floors and caps: values piled up at a boundary
+#
+# Generated data often clips values at a minimum or maximum. A spike at the edge would distort averages and tell us the column is censored.
+
+# %%
+edge = pd.DataFrame({
+    "min": df[NUMERIC_RAW].min(), "share_at_min_%": [(df[c] == df[c].min()).mean() * 100 for c in NUMERIC_RAW],
+    "max": df[NUMERIC_RAW].max(), "share_at_max_%": [(df[c] == df[c].max()).mean() * 100 for c in NUMERIC_RAW],
+}).round(2)
+edge[(edge["share_at_min_%"] > 0.5) | (edge["share_at_max_%"] > 0.5)]
+
+# %% [markdown]
+# **Takeaway:**
+# - **Employee count = 1 for 27%** of businesses. That is real: sole proprietors with no staff. It is the largest boundary pile-up and is not an error.
+# - Percentage columns have **1–1.5% at exactly 100%** (GST filing, vendor payments, salary, EMI). These are **capped** values: "100% on time" means "at least as good as we can measure". Tree models handle this naturally.
+# - Small floors: bank balance at ₹5,000 (0.7%), attrition at 1% (2.5%). Too small to matter.
+# - EMI = 0 and credit history = 0 for 65% are the "no loan" rows from 2c, not a cap.
+#
+# ### 2e. Summary statistics
+
+# %%
+desc = df[NUMERIC_RAW].describe(percentiles=[.01, .25, .5, .75, .99]).T
+desc["skew"] = df[NUMERIC_RAW].skew()
+desc["cv"] = desc["std"] / desc["mean"]   # coefficient of variation: spread relative to the average
+desc.round(3)
+
+# %% [markdown]
+# ### 2f. Outliers (IQR rule)
+#
+# A value is flagged if it lies more than 1.5 × IQR below the 25th or above the 75th percentile. For skewed money columns we check on the **log scale**, which is how a model sees them.
+
+# %%
+def iqr_share(s):
+    q1, q3 = s.quantile([.25, .75])
+    iqr = q3 - q1
+    return ((s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)).mean() * 100
+
+money_cols = [c for c in NUMERIC_RAW if c.endswith("_INR")]
+out = pd.DataFrame({
+    "outlier_%_raw": [iqr_share(df[c].dropna()) for c in NUMERIC_RAW],
+    "outlier_%_log": [iqr_share(np.log1p(df[c].dropna())) if c in money_cols else np.nan for c in NUMERIC_RAW],
+}, index=NUMERIC_RAW).round(2)
+out.sort_values("outlier_%_raw", ascending=False).head(15)
+
+# %%
+fig, ax = plt.subplots(figsize=(14, 4))
+sns.boxplot(data=np.log10(df[money_cols].replace(0, np.nan)), orient="h", ax=ax, palette="Purples", fliersize=1)
+ax.set_yticklabels([c.replace("_INR", "").replace("Monthly_", "") for c in money_cols], fontsize=8)
+ax.set_title("Money columns on log10 scale (₹): the raw-scale 'outliers' are just big businesses")
+plt.show()
+
+# %% [markdown]
+# **Takeaway:** about 8% of businesses look like outliers on the raw rupee scale, but almost none do on the log scale. They are **large businesses, not errors**, so we keep them. `Monthly_Loan_EMI_INR` and `Credit_History_Months` look like outliers only because 65% of values are zero (no loan). We do not clip or drop rows; real anomalies are caught by the cross-source rules and the Isolation Forest instead.
+#
+# ### 2g. Categorical columns: levels and balance
+
+# %%
+fig, axes = plt.subplots(2, 3, figsize=(17, 7))
+for ax, col in zip(axes.flat, CATEGORICAL):
+    vc = df[col].value_counts()
+    ax.barh(vc.index[::-1], vc.values[::-1], color="#6366F1")
+    for i, v in enumerate(vc.values[::-1]):
+        ax.text(v, i, f" {v / len(df):.1%}", va="center", fontsize=8)
+    ax.set_title(f"{col} ({len(vc)} levels)", fontsize=10)
+    ax.set_xlim(0, vc.max() * 1.25)
+plt.tight_layout()
+plt.show()
+print("Smallest level of any category:", min((df[c].value_counts().min(), c) for c in CATEGORICAL))
+
+# %% [markdown]
+# **Takeaway:** no rare levels (smallest is still ~2,500 rows), no typos or mixed spellings, low cardinality (≤10 levels). We can use the categories directly in LightGBM with no grouping of rare levels.
+#
+# ### 2h. How the categories relate to each other (Cramér's V)
+#
+# Cramér's V is a 0–1 measure of association between two categorical columns (0 = unrelated, 1 = one fully decides the other).
+
+# %%
+from scipy.stats import chi2_contingency
+
+def cramers_v(a, b):
+    t = pd.crosstab(a, b)
+    chi2 = chi2_contingency(t, correction=False)[0]
+    return np.sqrt(chi2 / (t.values.sum() * (min(t.shape) - 1)))
+
+cv = pd.DataFrame([[cramers_v(df[a], df[b]) for b in CATEGORICAL] for a in CATEGORICAL], index=CATEGORICAL, columns=CATEGORICAL)
+plt.figure(figsize=(7, 5.5))
+sns.heatmap(cv, annot=True, fmt=".2f", cmap="Purples", vmin=0, vmax=1)
+plt.title("Cramér's V between categorical columns")
+plt.show()
+
+# %% [markdown]
+# **Takeaway:** `Customer_Segment` and `Has_Existing_Loan` are strongly linked (NTC never has a loan). Everything else is close to independent, so industry, location and business type each add their own information.
+#
+# ### 2i. Multicollinearity among numeric inputs (VIF)
+#
+# The variance inflation factor (VIF) asks: how well can the other columns predict this one? VIF above 10 means the column is mostly a copy of others. That matters for the linear baseline and for reading coefficients, not for tree models.
+
+# %%
+from sklearn.linear_model import LinearRegression as _LR
+Xv = df[NUMERIC_RAW].drop(columns=["EMI_On_Time_Rate_Pct"]).copy()
+Xv[money_cols] = np.log1p(Xv[money_cols])
+vif = pd.Series({c: 1 / max(1 - _LR().fit(Xv.drop(columns=c), Xv[c]).score(Xv.drop(columns=c), Xv[c]), 1e-9) for c in Xv.columns})
+vif.sort_values(ascending=False).round(1).to_frame("VIF").head(12)
+
+# %% [markdown]
+# **Takeaway:** the size columns have very high VIF: bank credits 515, GST sales 418, bank debits 204, turnover 161. They are near-copies of each other, as section 6 shows. The behavioural columns (GST timeliness, payroll and the rest) have VIF under 5, so each is a mostly independent signal. This is the main reason we build **ratios** (size-free) rather than feeding many raw rupee amounts.
 
 # %% [markdown]
 # ## 3. The answer columns
