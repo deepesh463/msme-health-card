@@ -157,29 +157,18 @@ Everything goes through the **REST API**, so any system in any language can use 
 | Memory per API copy | ~350 MB |
 | One saved card | ~9 KB |
 
-### Capacity (estimate)
+### How we scale (high level)
 
-One copy handles about **2 full cards a second**. Explanations take about 80% of that time.
-
-- **Assume 10,000 applications a day**, with 15% in the busiest hour. That is about 1,500 an hour, or one every 2–3 seconds. **One small server is enough, with about 5× headroom.**
-- **At 1 lakh a day**, the peak is about 4 a second. **3–4 copies** (about 1.4 GB in total) fit on one 4-core server.
-- **At 10 lakh (1 million) a day**, the peak is about 42 a second. That needs **about 20 copies** (about 7 GB in total) on 5–6 servers, behind a load balancer that adds copies automatically. If the decision comes first and explanations later, **about 6 copies** are enough.
-- **Batch:** 10 lakh businesses re-scored in about 2 minutes.
-- **Storage:** 10 lakh cards a month is about 9 GB a month.
-
-Quick formula: peak per second = daily applications × 0.15 ÷ 3,600. Divide by 2 to get the number of copies needed.
-
-### What changes as it grows
-
-| Topic | Today (demo) | With more traffic |
-|---|---|---|
-| More users | One server | The API keeps no memory between requests, so we run more copies of it |
-| Saved data | SQLite, a file on one server | One shared Postgres, so every copy sees the same consents, cards and audit log. **This is the first thing to break.** |
-| Speed | Decision and explanations together (0.45 s) | Return the decision first (~0.1 s) and compute explanations in the background. Saved cards return in 7 ms. |
-| Data arriving | Direct API calls | A queue per source, so nothing is lost if a source is slow |
-| Whole portfolio | 50k scored in under 6 s | Scheduled nightly batch job |
-| Models | Saved files in the repo | Versioned, so we can roll back to an older model |
-| Hosting | Render free tier, which sleeps when idle (first request takes about 1 min) | A paid plan that is always on |
+1. **Load balancer + autoscaling.** Run many copies of the API behind a load balancer, which sends each request to a free copy. Autoscaling adds copies when traffic rises and removes them when it drops. This works because the API keeps no memory between requests.
+2. **Cache.** Save each computed card in a fast store (e.g. Redis). A repeat request returns in 7 ms instead of 0.45 s. When new data arrives for a business, clear its saved card.
+3. **Decision first, explanations later.** Return the score and loan offer in about 0.1 s. Compute SHAP explanations in the background, since they take about 80% of the time.
+4. **Queue for slow or bursty work.** Explanations, re-scoring on new GST or bank data, and fetching from data sources go through a queue (e.g. Kafka or SQS). During a spike, jobs wait safely instead of crashing the system.
+5. **Rate limits per partner.** An API gateway checks API keys and limits how many requests each partner can send, so one faulty caller cannot slow down everyone.
+6. **Features prepared in advance.** Fetch bank and GST data when consent is given and store the ready features. Real-time scoring then only reads features and runs the model.
+7. **Score in small batches.** Scoring together costs about 0.1 ms per business (50k in 5.7 s), against about 0.1 s one at a time. Grouping requests for a few milliseconds multiplies what each copy can handle.
+8. **One shared Postgres.** It replaces SQLite, so every copy sees the same consents, cards and audit log. This is the first thing to change.
+9. **Nightly batch** for re-scoring the whole portfolio, and **versioned models** that can be rolled back.
+10. **Monitoring.** Track response time, errors, requests per second and queue length, and alert when they go past limits.
 
 ## 6. Security and compliance
 
