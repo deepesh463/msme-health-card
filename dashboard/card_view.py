@@ -45,15 +45,12 @@ def header(card_d: dict, raw: dict):
         f'{"✓" if ok else "✕"} {name}</span>'
         for name, ok in cov["sources"].items()
     )
-    conf_bg, conf_fg = {"High": ("#DCFCE7", "#166534"), "Medium": ("#FEF3C7", "#92400E")}.get(cov["confidence"], ("#FEE2E2", "#991B1B"))
     note = f'<div style="font-size:.75rem;color:#64748B;margin-top:6px">ℹ️ {cov["note"]}</div>' if cov["note"] else ""
     st.markdown(
         '<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;margin:4px 0 10px">'
         '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">'
         '<span style="font-size:.78rem;font-weight:700;color:#0F172A;margin-right:4px">Data sources</span>'
         f'{pills}'
-        '<span style="margin-left:auto;font-size:.78rem;color:#475569">Confidence '
-        f'<b style="background:{conf_bg};color:{conf_fg};padding:3px 10px;border-radius:999px">{cov["confidence"]}</b></span>'
         f'</div>{note}</div>',
         unsafe_allow_html=True,
     )
