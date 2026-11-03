@@ -11,9 +11,9 @@ st.set_page_config(page_title="MSME Health Card", page_icon="📇", layout="wide
 pages = st.navigation({
     "Lender view": [
         st.Page("pages/portfolio.py", title="Portfolio overview", icon="📊", default=True),
-        st.Page("pages/health_card.py", title="MSME Health Card", icon="📇"),
+        st.Page("pages/health_card.py", title="Financial Health Card", icon="📇"),
         st.Page("pages/what_if.py", title="What-if simulator", icon="🧪"),
-        st.Page("pages/new_business.py", title="Score a new business", icon="➕"),
+        st.Page("pages/new_business.py", title="New applicant assessment", icon="➕"),
     ],
     "Under the hood": [
         st.Page("pages/model.py", title="Model & methodology", icon="🧠"),

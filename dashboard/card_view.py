@@ -1,4 +1,4 @@
-"""Renders a full Health Card. Used by the Health Card page and the 'Score a new business' page."""
+"""Renders a full Health Card. Used by the Health Card page and the 'New applicant assessment' page."""
 from __future__ import annotations
 
 import pandas as pd

@@ -165,4 +165,4 @@ rv = pd.DataFrame({
     "Unusualness (0-100)": rv.anomaly_percentile.round(0).astype(int), "Rule flags": rv.rule_flag_count, "Decision": rv.decision,
 })
 review.dataframe(rv, use_container_width=True, hide_index=True, height=300)
-review.caption("Copy an MSME ID into the **MSME Health Card** page to see which checks failed.")
+review.caption("Copy an MSME ID into the **Financial Health Card** page to see which checks failed.")
